@@ -44,4 +44,4 @@ python app.py
 - 토양 수분 센서: GPIO 17
 - DHT22 (온도/습도): GPIO 4
 - 조도 센서: GPIO 18
-- 워터펌프 릴레이: GPIO 23 
+- 워터펌프 릴레이: GPIO 23
