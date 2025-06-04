@@ -1,2 +1,4 @@
 PyAudio==0.2.14
-openai-whisper==20231117 
+openai-whisper==20231117
+openai==1.12.0
+python-dotenv==1.0.1 
