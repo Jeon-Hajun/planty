@@ -14,7 +14,10 @@ class Planty:
         
         # OpenAI 클라이언트 초기화
         load_dotenv()
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
+        self.client = OpenAI(api_key=api_key)
         
         # 오디오 설정
         self.CHUNK = 1024
