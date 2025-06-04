@@ -2,7 +2,7 @@ import os
 import pyaudio
 import wave
 import whisper
-from openai import OpenAI
+import openai
 from dotenv import load_dotenv
 
 class Planty:
@@ -17,7 +17,7 @@ class Planty:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
-        self.client = OpenAI(api_key=api_key)
+        openai.api_key = api_key
         
         # 오디오 설정
         self.CHUNK = 1024
@@ -120,7 +120,7 @@ class Planty:
 이 정보를 바탕으로 대화를 진행하고, 사용자에게 친근하게 응답하세요. 센서 데이터에 따라 당신의 상태와 필요한 케어를 자연스럽게 대화에 포함시키세요.""".format(**self.sensor_data)
 
         try:
-            response = self.client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_prompt},
