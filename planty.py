@@ -4,6 +4,8 @@ import wave
 import whisper
 import openai
 from dotenv import load_dotenv
+from google.cloud import texttospeech
+import json
 
 class Planty:
     def __init__(self):
@@ -18,6 +20,12 @@ class Planty:
         if not api_key:
             raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
         openai.api_key = api_key
+        
+        # Google TTS 클라이언트 초기화
+        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if not credentials_path:
+            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS가 설정되지 않았습니다. .env 파일을 확인해주세요.")
+        self.tts_client = texttospeech.TextToSpeechClient()
         
         # 오디오 설정
         self.CHUNK = 1024
@@ -158,6 +166,37 @@ class Planty:
             print(f"응답 생성 중 오류 발생: {str(e)}")
             return "죄송합니다. 응답을 생성하는 중에 문제가 발생했어요."
 
+    def speak(self, text):
+        """텍스트를 음성으로 변환하여 재생"""
+        try:
+            # 음성 설정
+            synthesis_input = texttospeech.SynthesisInput(text=text)
+            voice = texttospeech.VoiceSelectionParams(
+                language_code="ko-KR",
+                name="ko-KR-Neural2-A",
+                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
+            )
+            audio_config = texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.MP3
+            )
+
+            # 음성 합성
+            response = self.tts_client.synthesize_speech(
+                input=synthesis_input, voice=voice, audio_config=audio_config
+            )
+
+            # 임시 파일로 저장
+            temp_file = "temp_speech.mp3"
+            with open(temp_file, "wb") as out:
+                out.write(response.audio_content)
+
+            # 오디오 재생
+            os.system(f"afplay {temp_file}")  # macOS용
+            os.remove(temp_file)  # 임시 파일 삭제
+
+        except Exception as e:
+            print(f"음성 변환 중 오류 발생: {str(e)}")
+
     def run(self):
         """Planty 실행"""
         print("Planty 음성 인식 테스트를 시작합니다.")
@@ -172,6 +211,8 @@ class Planty:
                     # LLM 응답 생성
                     response = self.generate_response(text)
                     print(f"\nPlanty의 응답: {response}")
+                    # TTS로 응답 재생
+                    self.speak(response)
                 else:
                     print("음성 인식에 실패했습니다. 다시 시도해주세요.")
                 
