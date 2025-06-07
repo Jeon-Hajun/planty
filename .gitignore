@@ -1,3 +1,10 @@
+# Environment variables
+.env
+
+# Google Cloud credentials
+credentials/
+*.json
+
 # Python
 __pycache__/
 *.py[cod]
@@ -24,6 +31,7 @@ wheels/
 # Virtual Environment
 venv/
 ENV/
+.venv/
 
 # IDE
 .idea/
@@ -31,6 +39,11 @@ ENV/
 *.swp
 *.swo
 
+# OS
+.DS_Store
+Thumbs.db
+
 # Project specific
-temp_recording.wav
-temp_speech.mp3 
+test/output_*.mp3
+temp_*.mp3
+temp_*.wav
