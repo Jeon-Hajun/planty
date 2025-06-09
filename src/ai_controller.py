@@ -208,7 +208,7 @@ class AIController:
             print(f"[음성 인식] 오류 발생: {str(e)}")
             return None
 
-    def _is_silence(self, audio_data, threshold=500):
+    def _is_silence(self, audio_data, threshold=300):
         """오디오 데이터가 무음인지 확인합니다."""
         return max(audio_data) < threshold
 
@@ -237,7 +237,7 @@ class AIController:
                     print("\n[음성 인식] 음성 수집 중...")
                     frames = []
                     silence_frames = 0
-                    max_silence_frames = int(RATE / CHUNK * 1.0)  # 1초 동안 무음이면 음성 종료로 판단
+                    max_silence_frames = int(RATE / CHUNK * 2.0)  # 2초 동안 무음이면 음성 종료로 판단
                     
                     while silence_frames < max_silence_frames:
                         data = stream.read(CHUNK)
@@ -246,8 +246,13 @@ class AIController:
                         # 무음 감지
                         if self._is_silence(data):
                             silence_frames += 1
+                            if silence_frames % 10 == 0:  # 10프레임마다 무음 상태 출력
+                                print(".", end="", flush=True)
                         else:
                             silence_frames = 0
+                            print("음성 감지 중...", end="\r", flush=True)
+                    
+                    print("\n[음성 인식] 음성 수집 완료")
                     
                     # 수집된 오디오 데이터 처리
                     audio_data = b''.join(frames)
