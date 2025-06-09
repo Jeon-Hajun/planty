@@ -195,13 +195,9 @@ class AIController:
             if response.results:
                 transcript = response.results[0].alternatives[0].transcript
                 print(f"[음성 인식] 인식된 텍스트: {transcript}")
-                
-                # 키워드 확인 (영문은 대소문자 구분 없이, 한글은 그대로)
-                if "플랜티" in transcript or "planty" in transcript.lower():
-                    print("[음성 인식] 키워드 감지됨!")
-                    return transcript
+                return transcript
             
-            print("[음성 인식] 키워드가 감지되지 않음")
+            print("[음성 인식] 인식된 텍스트 없음")
             return None
             
         except Exception as e:
