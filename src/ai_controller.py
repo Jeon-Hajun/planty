@@ -183,17 +183,21 @@ class AIController:
                     wf.setframerate(self.RATE)
                     wf.writeframes(b''.join(frames))
                 
-                # Whisper로 음성 인식
-                result = self.whisper_model.transcribe("temp_audio.wav")
+                # Whisper로 음성 인식 (한국어 설정)
+                result = self.whisper_model.transcribe(
+                    "temp_audio.wav",
+                    language="ko",
+                    fp16=False  # CPU 사용 시 FP32 사용
+                )
                 text = result["text"]
                 print(f"인식된 텍스트: {text}")
                 
                 # 키워드 감지
                 if "플랜티" in text.lower() or "planty" in text.lower():
-                    print("키워드 감지됨!")
+                    print("\n키워드 감지됨! 플랜티가 깨어났습니다.")
                     # GPT 응답 생성
                     response = self._get_gpt_response(text)
-                    print(f"GPT 응답: {response}")
+                    print(f"\nGPT 응답: {response}")
                     
                     # 표정과 행동 추출
                     expression, action = self._parse_response(response)
@@ -207,6 +211,8 @@ class AIController:
                     
                     # 상태 업데이트
                     self.state.update(is_speaking=False)
+                else:
+                    print("키워드가 감지되지 않았습니다. (플랜티 또는 planty)")
                 
             except Exception as e:
                 print(f"오디오 처리 중 오류 발생: {e}")
