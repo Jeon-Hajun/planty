@@ -8,6 +8,7 @@ import threading
 import queue
 from dotenv import load_dotenv
 from google.cloud import texttospeech
+from openai import OpenAI
 
 class AIController:
     def __init__(self, state):
@@ -31,7 +32,7 @@ class AIController:
         )
         
         # Whisper 모델 로드
-        self.model = whisper.load_model("tiny")
+        self.whisper_model = whisper.load_model("tiny")
         
         # OpenAI API 키 설정
         load_dotenv()
@@ -45,12 +46,14 @@ class AIController:
         
         # 음성 인식기 초기화
         self.recognizer = sr.Recognizer()
+        
+        self.client = OpenAI()
     
     def _get_gpt_response(self, text):
         """GPT 응답 생성"""
         try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "당신은 식물을 돌보는 AI 어시스턴트 Planty입니다. 친근하고 자연스러운 대화를 하며, 식물 관리에 대한 조언을 제공합니다."},
                     {"role": "user", "content": text}
@@ -58,7 +61,7 @@ class AIController:
                 temperature=0.7,
                 max_tokens=150
             )
-            return response.choices[0].message.content
+            return response.choices[0].message.content.strip()
         except Exception as e:
             print(f"GPT 응답 생성 중 오류 발생: {e}")
             return "죄송합니다. 응답을 생성하는데 문제가 발생했습니다."
@@ -152,7 +155,7 @@ class AIController:
                     wf.writeframes(b''.join(frames))
                 
                 # Whisper로 음성 인식
-                result = self.model.transcribe("temp_audio.wav")
+                result = self.whisper_model.transcribe("temp_audio.wav")
                 text = result["text"]
                 print(f"인식된 텍스트: {text}")
                 

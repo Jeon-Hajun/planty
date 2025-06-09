@@ -10,54 +10,61 @@
             margin: 0;
             padding: 20px;
             background-color: #f0f8ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
         }
-        .plant-container {
-            max-width: 800px;
-            margin: 0 auto;
-            text-align: center;
-        }
-        .plant-display {
-            width: 300px;
-            height: 300px;
-            margin: 20px auto;
-            position: relative;
-        }
-        .plant-image {
+        .sensor-container {
+            max-width: 600px;
             width: 100%;
-            height: 100%;
-            object-fit: contain;
-            transition: all 0.3s ease;
+            padding: 30px;
+            background: linear-gradient(135deg, #e0f2f7, #bbdefb);
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            text-align: center;
+            color: #333;
         }
-        .sensor-data {
+        h1 {
+            color: #2196f3;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        .sensor-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            margin-top: 20px;
+            margin-top: 30px;
         }
         .sensor-item {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        .status-display {
-            margin-top: 20px;
-            padding: 10px;
-            background: #e8f5e9;
-            border-radius: 5px;
+        .sensor-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        }
+        .sensor-item h3 {
+            color: #424242;
+            margin-top: 0;
+            font-size: 1.3em;
+        }
+        .sensor-item p {
+            font-size: 2em;
+            font-weight: bold;
+            color: #0d47a1;
+            margin-bottom: 0;
         }
     </style>
 </head>
 <body>
-    <div class="plant-container">
-        <h1>Planty</h1>
-        <div class="plant-display">
-            <img id="plantImage" src="/static/images/neutral.png" alt="Planty" class="plant-image">
-        </div>
-        <div class="status-display" id="statusDisplay">
-            상태: 대기 중...
-        </div>
-        <div class="sensor-data">
+    <div class="sensor-container">
+        <h1>Planty Sensor Data</h1>
+        <div class="sensor-grid">
             <div class="sensor-item">
                 <h3>습도</h3>
                 <p id="humidity">--%</p>
@@ -78,43 +85,26 @@
     </div>
 
     <script>
-        function updatePlantDisplay(data) {
-            // 표정 업데이트
-            const plantImage = document.getElementById('plantImage');
-            plantImage.src = `/static/images/${data.expression}.png`;
-            
-            // 상태 표시 업데이트
-            const statusDisplay = document.getElementById('statusDisplay');
-            let statusText = `표정: ${data.expression}, 행동: ${data.action}`;
-            if (data.is_speaking) {
-                statusText += ' (말하는 중...)';
-            }
-            statusDisplay.textContent = statusText;
-            
-            // 센서 데이터 업데이트
-            document.getElementById('humidity').textContent = `${data.sensors.humidity}%`;
-            document.getElementById('temperature').textContent = `${data.sensors.temperature}°C`;
-            document.getElementById('light').textContent = `${data.sensors.light} lux`;
-            document.getElementById('nutrients').textContent = `${data.sensors.nutrients}%`;
-        }
-
-        // 주기적으로 상태 업데이트
-        function pollState() {
+        // WebSocket 대신 REST API 호출로 변경
+        function updateSensorData() {
             fetch('/state')
                 .then(response => response.json())
                 .then(data => {
-                    updatePlantDisplay(data);
+                    document.getElementById('humidity').textContent = `${data.sensors.humidity}%`;
+                    document.getElementById('temperature').textContent = `${data.sensors.temperature}°C`;
+                    document.getElementById('light').textContent = `${data.sensors.light} lux`;
+                    document.getElementById('nutrients').textContent = `${data.sensors.nutrients}%`;
                 })
                 .catch(error => {
-                    console.error('상태 업데이트 중 오류 발생:', error);
+                    console.error('센서 데이터 업데이트 중 오류 발생:', error);
                 });
         }
 
-        // 1초마다 상태 업데이트
-        setInterval(pollState, 1000);
+        // 1초마다 센서 데이터 업데이트
+        setInterval(updateSensorData, 1000);
         
-        // 초기 상태 로드
-        pollState();
+        // 초기 데이터 로드
+        updateSensorData();
     </script>
 </body>
 </html> 
