@@ -110,6 +110,18 @@
             margin: 10px 0;
             min-height: 1.5em;
         }
+        .listening-indicator {
+            display: none;
+            color: #e74c3c;
+            font-weight: bold;
+            margin-top: 10px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -151,6 +163,7 @@
         <div class="voice-recognition">
             <h3>음성 인식</h3>
             <div class="voice-text" id="voice-text">음성을 인식 중입니다...</div>
+            <div class="listening-indicator" id="listening-indicator">음성 인식 중...</div>
         </div>
     </div>
 
@@ -183,33 +196,25 @@
 
         // 상태 업데이트 함수
         function updateState() {
-            fetch('/get_state')
+            fetch('/state')
                 .then(response => response.json())
                 .then(data => {
                     // 표정 업데이트
-                    const expressionText = document.getElementById('expression-text');
-                    const expressionImage = document.getElementById('expression-image');
+                    document.getElementById('expression-text').textContent = data.expression;
+                    document.getElementById('expression-image').src = `/static/images/${data.expression}.svg`;
                     
-                    if (expressionText.textContent !== data.expression) {
-                        expressionText.textContent = data.expression;
-                        expressionImage.src = `/static/images/${data.expression}.svg`;
+                    // 음성 인식 상태 업데이트
+                    const listeningIndicator = document.getElementById('listening-indicator');
+                    if (data.is_listening) {
+                        listeningIndicator.style.display = 'block';
+                    } else {
+                        listeningIndicator.style.display = 'none';
                     }
-                    
-                    // LED 상태 업데이트
-                    updateLEDStatus('red', data.red_led);
-                    updateLEDStatus('green', data.green_led);
-                    updateLEDStatus('blue', data.blue_led);
-                })
-                .catch(error => {
-                    console.error('상태 업데이트 중 오류 발생:', error);
                 });
         }
 
-        // 1초마다 상태 업데이트
-        setInterval(updateState, 1000);
-
-        // 페이지 로드 시 초기 상태 업데이트
-        document.addEventListener('DOMContentLoaded', updateState);
+        // 주기적으로 상태 업데이트
+        setInterval(updateState, 100);
     </script>
 </body>
 </html> 

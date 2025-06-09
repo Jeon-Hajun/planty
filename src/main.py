@@ -19,6 +19,7 @@ class GlobalState:
         self.expression = 'neutral'
         self.action = 'idle'
         self.is_speaking = False
+        self.is_listening = False
         self.sensors = {
             'humidity': 0,
             'temperature': 0,
@@ -27,7 +28,7 @@ class GlobalState:
         }
         self.last_update = time.time()
     
-    def update(self, expression=None, action=None, is_speaking=None, sensors=None):
+    def update(self, expression=None, action=None, is_speaking=None, is_listening=None, sensors=None):
         with self.lock:
             if expression is not None:
                 self.expression = expression
@@ -35,6 +36,8 @@ class GlobalState:
                 self.action = action
             if is_speaking is not None:
                 self.is_speaking = is_speaking
+            if is_listening is not None:
+                self.is_listening = is_listening
             if sensors is not None:
                 self.sensors.update(sensors)
             self.last_update = time.time()
@@ -45,6 +48,7 @@ class GlobalState:
                 'expression': self.expression,
                 'action': self.action,
                 'is_speaking': self.is_speaking,
+                'is_listening': self.is_listening,
                 'sensors': self.sensors,
                 'last_update': self.last_update
             }
@@ -86,9 +90,6 @@ def main():
         
         # 대시보드 실행 (메인 스레드)
         dashboard.run()
-        
-        # Flask 서버 시작
-        app.run(host='0.0.0.0', port=5000, debug=True)
         
     except KeyboardInterrupt:
         print("\n프로그램 종료 중...")

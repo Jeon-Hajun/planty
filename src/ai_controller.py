@@ -238,7 +238,7 @@ class AIController:
         """음성 인식을 시작합니다."""
         try:
             print("\n[음성 인식] 시작...")
-            self.state.is_listening = True
+            self.state.update(is_listening=True)  # 음성 인식 시작 상태 업데이트
             
             # 오디오 스트림 설정
             stream = self.audio.open(
@@ -259,7 +259,7 @@ class AIController:
             # 스트림 정리
             stream.stop_stream()
             stream.close()
-            self.state.is_listening = False
+            self.state.update(is_listening=False)  # 음성 인식 종료 상태 업데이트
             
             # 오디오 데이터 처리
             audio_data = b''.join(frames)
@@ -267,7 +267,7 @@ class AIController:
             
         except Exception as e:
             print(f"[음성 인식] 오류 발생: {str(e)}")
-            self.state.is_listening = False
+            self.state.update(is_listening=False)  # 오류 발생 시에도 상태 업데이트
             return None
 
     def run(self):
