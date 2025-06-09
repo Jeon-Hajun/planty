@@ -234,17 +234,15 @@ class AIController:
             
             while self.running:
                 if not self.state.is_speaking:
-                    print("\n[음성 인식] 5초 동안 음성 수집 중...")
+                    print("\n[음성 인식] 음성 수집 중...")
                     frames = []
                     
-                    # 5초 동안 오디오 데이터 수집
-                    for i in range(0, int(RATE / CHUNK * 5)):
-                        data = stream.read(CHUNK)
+                    # 5초 동안 연속적으로 오디오 데이터 수집
+                    for _ in range(0, int(RATE / CHUNK * 5)):
+                        data = stream.read(CHUNK, exception_on_overflow=False)
                         frames.append(data)
-                        if i % 10 == 0:  # 진행 상태 표시
-                            print(".", end="", flush=True)
                     
-                    print("\n[음성 인식] 음성 수집 완료")
+                    print("[음성 인식] 음성 수집 완료")
                     
                     # 수집된 오디오 데이터 처리
                     audio_data = b''.join(frames)
