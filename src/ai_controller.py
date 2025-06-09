@@ -196,15 +196,10 @@ class AIController:
                 transcript = response.results[0].alternatives[0].transcript
                 print(f"[음성 인식] 인식된 텍스트: {transcript}")
                 
-                # 키워드 확인 및 제거
-                transcript_lower = transcript.lower()
-                if "플랜티" in transcript_lower or "planty" in transcript_lower:
+                # 키워드 확인
+                if "플랜티" in transcript.lower() or "planty" in transcript.lower():
                     print("[음성 인식] 키워드 감지됨!")
-                    # 키워드 제거
-                    transcript = transcript.replace("플랜티", "").replace("planty", "").strip()
-                    if transcript:  # 키워드 외에 다른 텍스트가 있는 경우에만 반환
-                        return transcript
-                    return None
+                    return transcript
             
             print("[음성 인식] 키워드가 감지되지 않음")
             return None
