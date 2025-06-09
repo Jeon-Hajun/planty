@@ -14,8 +14,24 @@ from google.cloud import speech
 import re
 
 class AIController:
-    def __init__(self, state):
-        self.state = state
+    def __init__(self):
+        """AI 컨트롤러 초기화"""
+        # 환경 변수 로드
+        load_dotenv()
+        
+        # OpenAI API 키 설정
+        self.client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        
+        # Google Cloud TTS 클라이언트 초기화
+        self.tts_client = texttospeech.TextToSpeechClient()
+        
+        # Google Speech-to-Text 클라이언트 초기화
+        self.speech_client = speech.SpeechClient()
+        
+        # 상태 관리
+        self.state = State()
+        
+        # 실행 상태
         self.running = True
         
         # 오디오 설정
@@ -46,21 +62,11 @@ class AIController:
         # Whisper 모델 로드
         self.whisper_model = whisper.load_model("tiny")
         
-        # OpenAI API 키 설정
-        load_dotenv()
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        
-        # Google Cloud TTS 클라이언트 초기화
-        self.tts_client = texttospeech.TextToSpeechClient()
-        
         # 오디오 큐 초기화
         self.audio_queue = queue.Queue()
         
         # 음성 인식기 초기화
         self.recognizer = sr.Recognizer()
-        
-        # Google Speech-to-Text 클라이언트 초기화
-        self.speech_client = speech.SpeechClient()
    
     def _get_gpt_response(self, text):
         """GPT를 사용하여 응답을 생성합니다."""
