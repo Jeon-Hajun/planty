@@ -187,8 +187,13 @@
                 .then(response => response.json())
                 .then(data => {
                     // 표정 업데이트
-                    document.getElementById('expression-text').textContent = data.expression;
-                    document.getElementById('expression-image').src = `/static/images/${data.expression}.svg`;
+                    const expressionText = document.getElementById('expression-text');
+                    const expressionImage = document.getElementById('expression-image');
+                    
+                    if (expressionText.textContent !== data.expression) {
+                        expressionText.textContent = data.expression;
+                        expressionImage.src = `/static/images/${data.expression}.svg`;
+                    }
                     
                     // LED 상태 업데이트
                     updateLEDStatus('red', data.red_led);
@@ -202,6 +207,9 @@
 
         // 1초마다 상태 업데이트
         setInterval(updateState, 1000);
+
+        // 페이지 로드 시 초기 상태 업데이트
+        document.addEventListener('DOMContentLoaded', updateState);
     </script>
 </body>
 </html> 

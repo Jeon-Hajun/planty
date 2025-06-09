@@ -139,7 +139,7 @@ class AIController:
                 temp_file_path = temp_file.name
             
             # 음성 재생
-            os.system(f"mpg123 {temp_file_path}")
+            os.system(f"mpg123 -q {temp_file_path}")
             
             # 임시 파일 삭제
             os.unlink(temp_file_path)
@@ -232,7 +232,7 @@ class AIController:
             
             print("음성 인식을 시작합니다...")
             
-            while True:
+            while self.running:
                 frames = []
                 # 5초 동안 오디오 데이터 수집
                 for _ in range(0, int(RATE / CHUNK * 5)):
@@ -241,7 +241,25 @@ class AIController:
                 
                 # 수집된 오디오 데이터 처리
                 audio_data = b''.join(frames)
-                self._process_audio(audio_data)
+                transcript = self._process_audio(audio_data)
+                
+                # 음성 인식 결과가 있고, 현재 말하고 있지 않을 때만 처리
+                if transcript and not self.state.is_speaking:
+                    # 응답 생성
+                    response = self._get_gpt_response(transcript)
+                    
+                    # 표정 추출
+                    expression, _ = self._parse_response(response)
+                    print(f"표정: {expression}")
+                    
+                    # 상태 업데이트
+                    self.state.update(expression=expression, is_speaking=True)
+                    
+                    # 음성 합성 및 재생
+                    self._speak(response)
+                    
+                    # 상태 업데이트
+                    self.state.update(is_speaking=False)
                 
         except Exception as e:
             print(f"음성 인식 중 오류 발생: {str(e)}")
