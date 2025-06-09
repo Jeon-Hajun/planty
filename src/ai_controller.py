@@ -141,9 +141,9 @@ class AIController:
                 ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
             )
             
-            # 오디오 설정
+            # 오디오 설정 - WAV 형식으로 변경
             audio_config = texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3,
+                audio_encoding=texttospeech.AudioEncoding.LINEAR16,
                 speaking_rate=0.9,
                 pitch=0.0
             )
@@ -156,12 +156,10 @@ class AIController:
                 audio_config=audio_config
             )
             
-            # MP3 데이터를 WAV로 변환
-            audio_segment = AudioSegment.from_mp3(io.BytesIO(response.audio_content))
-            audio_data = audio_segment.raw_data
-            
-            # 오디오 데이터를 청크 단위로 재생
+            # WAV 데이터를 청크 단위로 재생
             chunk_size = self.CHUNK * 2  # 16비트 오디오이므로 2를 곱함
+            audio_data = response.audio_content
+            
             for i in range(0, len(audio_data), chunk_size):
                 chunk = audio_data[i:i + chunk_size]
                 if len(chunk) < chunk_size:
