@@ -12,7 +12,6 @@ from pydub import AudioSegment
 import tempfile
 from google.cloud import speech
 import re
-from gtts import gTTS
 
 class AIController:
     def __init__(self, state):
@@ -141,16 +140,37 @@ class AIController:
                 text = response
 
             # TTS 변환
-            print("\n[TTS] 음성 변환 중...")
-            tts = gTTS(text=text, lang='ko', slow=False)
-            tts.save("temp.mp3")
+            print("\n[TTS] 음성 합성 중...")
+            
+            # TTS 요청 설정
+            synthesis_input = texttospeech.SynthesisInput(text=text)
+            voice = texttospeech.VoiceSelectionParams(
+                language_code="ko-KR",
+                name="ko-KR-Neural2-A",
+                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
+            )
+            audio_config = texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.MP3
+            )
+            
+            # TTS 요청
+            response = self.tts_client.synthesize_speech(
+                input=synthesis_input,
+                voice=voice,
+                audio_config=audio_config
+            )
+            
+            # 임시 파일로 저장
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                temp_file.write(response.audio_content)
+                temp_file_path = temp_file.name
             
             # 음성 재생
             print("[TTS] 음성 재생 중...")
-            os.system("mpg123 temp.mp3")
+            os.system(f"mpg123 -q {temp_file_path}")
             
             # 임시 파일 삭제
-            os.remove("temp.mp3")
+            os.unlink(temp_file_path)
             
             return emotion
             
