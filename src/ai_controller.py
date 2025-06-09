@@ -179,33 +179,27 @@ class AIController:
             return "neutral"
     
     def _process_audio(self, audio_data):
-        """오디오 데이터를 처리하고 음성을 인식합니다."""
+        """오디오 데이터를 처리하고 텍스트로 변환합니다."""
         try:
-            print("\n[음성 인식] 오디오 데이터 처리 중...")
-            
-            # 오디오 데이터를 WAV 형식으로 변환
-            audio_segment = AudioSegment(
-                audio_data,
-                sample_width=2,
-                frame_rate=16000,
-                channels=1
-            )
-            
-            # 임시 WAV 파일로 저장
+            # WAV 형식으로 변환
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                audio_segment.export(temp_file.name, format='wav')
                 temp_file_path = temp_file.name
+                with wave.open(temp_file_path, 'wb') as wf:
+                    wf.setnchannels(self.CHANNELS)
+                    wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
+                    wf.setframerate(self.RATE)
+                    wf.writeframes(audio_data)
             
-            # Google Speech-to-Text로 음성 인식
+            # 오디오 파일 읽기
             with open(temp_file_path, 'rb') as audio_file:
                 content = audio_file.read()
             
+            # 음성 인식 설정
             audio = speech.RecognitionAudio(content=content)
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
                 language_code="ko-KR",
-                model="latest_short",
                 speech_contexts=[{
                     "phrases": ["플랜티", "planty"],
                     "boost": 20.0
@@ -242,65 +236,39 @@ class AIController:
     def start_voice_recognition(self):
         """음성 인식을 시작합니다."""
         try:
-            # 마이크 설정
-            CHUNK = 1024
-            FORMAT = pyaudio.paInt16
-            CHANNELS = 1
-            RATE = 16000
+            print("\n[음성 인식] 시작...")
+            self.state.is_listening = True
             
-            p = pyaudio.PyAudio()
-            stream = p.open(
-                format=FORMAT,
-                channels=CHANNELS,
-                rate=RATE,
+            # 오디오 스트림 설정
+            stream = self.audio.open(
+                format=self.FORMAT,
+                channels=self.CHANNELS,
+                rate=self.RATE,
                 input=True,
-                frames_per_buffer=CHUNK
+                frames_per_buffer=self.CHUNK
             )
             
-            print("\n[시스템] 음성 인식 시작")
+            # 오디오 데이터 수집 (7초)
+            print("[음성 인식] 음성 수집 중...")
+            frames = []
+            for _ in range(0, int(self.RATE / self.CHUNK * 7)):
+                data = stream.read(self.CHUNK, exception_on_overflow=False)
+                frames.append(data)
             
-            while self.running:
-                if not self.state.is_speaking:
-                    print("\n[음성 인식] 음성 수집 중...")
-                    frames = []
-                    
-                    # 5초 동안 연속적으로 오디오 데이터 수집
-                    for _ in range(0, int(RATE / CHUNK * 5)):
-                        data = stream.read(CHUNK, exception_on_overflow=False)
-                        frames.append(data)
-                    
-                    print("[음성 인식] 음성 수집 완료")
-                    
-                    # 수집된 오디오 데이터 처리
-                    audio_data = b''.join(frames)
-                    transcript = self._process_audio(audio_data)
-                    
-                    # 키워드가 감지되고, 현재 말하고 있지 않을 때만 처리
-                    if transcript and not self.state.is_speaking:
-                        # 응답 생성
-                        response = self._get_gpt_response(transcript)
-                        
-                        # 표정 추출
-                        expression, _ = self._parse_response(response)
-                        print(f"[표정] {expression}")
-                        
-                        # 상태 업데이트
-                        self.state.update(expression=expression, is_speaking=True)
-                        
-                        # 음성 합성 및 재생
-                        emotion = self._process_gpt_response(response)
-                        
-                        # 상태 업데이트
-                        self.state.update(is_speaking=False)
-                
-        except Exception as e:
-            print(f"[시스템] 오류 발생: {str(e)}")
-        finally:
+            # 스트림 정리
             stream.stop_stream()
             stream.close()
-            p.terminate()
-            print("\n[시스템] 음성 인식 종료")
-    
+            self.state.is_listening = False
+            
+            # 오디오 데이터 처리
+            audio_data = b''.join(frames)
+            return self._process_audio(audio_data)
+            
+        except Exception as e:
+            print(f"[음성 인식] 오류 발생: {str(e)}")
+            self.state.is_listening = False
+            return None
+
     def run(self):
         """AI 컨트롤러 실행"""
         # 오디오 처리 스레드 시작
