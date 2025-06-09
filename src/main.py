@@ -81,20 +81,23 @@ def main():
     ai = AIController(state)
     
     try:
-        # AI 컨트롤러 실행
-        ai.run()
+        # AI 컨트롤러 스레드 시작
+        ai_thread = threading.Thread(target=ai.run)
+        ai_thread.start()
         
         # 회로 제어 스레드 시작
         circuit_thread = threading.Thread(target=circuit.run)
         circuit_thread.start()
         
         # 대시보드 실행 (메인 스레드)
+        print("웹 서버를 시작합니다...")
         dashboard.run()
         
     except KeyboardInterrupt:
         print("\n프로그램 종료 중...")
         ai.stop()
         circuit.stop()
+        ai_thread.join()
         circuit_thread.join()
         print("프로그램이 종료되었습니다.")
 

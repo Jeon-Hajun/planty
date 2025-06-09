@@ -26,6 +26,6 @@ class Dashboard:
         """Flask 서버 실행"""
         try:
             print(f"웹 서버 시작: http://{host}:{port}")
-            self.app.run(host=host, port=port, debug=False, use_reloader=False)
+            self.app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
         except Exception as e:
             print(f"웹 서버 시작 중 오류 발생: {e}") 
