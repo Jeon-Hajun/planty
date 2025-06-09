@@ -9,8 +9,6 @@ import queue
 from dotenv import load_dotenv
 from google.cloud import texttospeech
 from openai import OpenAI
-from pydub import AudioSegment
-import io
 
 class AIController:
     def __init__(self, state):
