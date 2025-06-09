@@ -9,6 +9,8 @@ import queue
 from dotenv import load_dotenv
 from google.cloud import texttospeech
 from openai import OpenAI
+from pydub import AudioSegment
+import io
 
 class AIController:
     def __init__(self, state):
@@ -28,6 +30,15 @@ class AIController:
             channels=self.CHANNELS,
             rate=self.RATE,
             input=True,
+            frames_per_buffer=self.CHUNK
+        )
+        
+        # 출력용 스트림 초기화
+        self.output_stream = self.audio.open(
+            format=self.FORMAT,
+            channels=self.CHANNELS,
+            rate=self.RATE,
+            output=True,
             frames_per_buffer=self.CHUNK
         )
         
@@ -55,7 +66,28 @@ class AIController:
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "당신은 식물을 돌보는 AI 어시스턴트 Planty입니다. 친근하고 자연스러운 대화를 하며, 식물 관리에 대한 조언을 제공합니다."},
+                    {"role": "system", "content": """당신은 식물을 돌보는 AI 어시스턴트 Planty입니다. 
+                    당신의 주요 역할은 다음과 같습니다:
+                    1. 식물 관리에 대한 전문적인 조언 제공
+                    2. 식물의 건강 상태 진단 및 해결책 제시
+                    3. 식물 관련 질문에 대한 친절하고 정확한 답변
+                    4. 사용자의 식물 관리 습관 개선을 위한 제안
+                    
+                    대화 스타일:
+                    - 친근하고 자연스러운 톤 사용
+                    - 전문적인 지식과 실용적인 조언 균형있게 제공
+                    - 사용자의 감정에 공감하며 대화
+                    - 명확하고 이해하기 쉬운 설명 제공
+                    
+                    감정 표현:
+                    - 행복/기쁨: [happy] (좋아, 행복, 기쁘, 감사, 즐거운, 성공, 완벽, 최고)
+                    - 걱정/불안: [worried] (슬프, 걱정, 불안, 힘들, 어려운, 주의, 조심)
+                    - 피곤/졸림: [sleepy] (피곤, 졸리, 쉬고 싶, 휴식, 잠)
+                    - 신남/놀람: [excited] (와!, 대박, 놀라운, 신기한, 멋진)
+                    - 생각중: [thinking] (음, 그렇군, 생각해볼게, 잠시만)
+                    
+                    응답 형식:
+                    [감정] [주요 메시지] [추가 설명/조언]"""},
                     {"role": "user", "content": text}
                 ],
                 temperature=0.7,
@@ -72,23 +104,21 @@ class AIController:
         expression = "neutral"
         action = "idle"
         
-        # 긍정적인 표현
-        positive_words = ["좋아", "행복", "기쁘", "감사", "즐거운"]
-        if any(word in response for word in positive_words):
-            expression = "happy"
-            action = "waving"
+        # 감정 태그에 따른 행동 매핑
+        emotion_actions = {
+            "happy": "waving",
+            "worried": "shaking",
+            "sleepy": "idle",
+            "excited": "jumping",
+            "thinking": "thinking"
+        }
         
-        # 부정적인 표현
-        negative_words = ["슬프", "걱정", "불안", "힘들", "어려운"]
-        if any(word in response for word in negative_words):
-            expression = "worried"
-            action = "shaking"
-        
-        # 피곤한 표현
-        tired_words = ["피곤", "졸리", "쉬고 싶", "휴식"]
-        if any(word in response for word in tired_words):
-            expression = "sleepy"
-            action = "idle"
+        # 응답에서 감정 태그 검색
+        for emotion, action_type in emotion_actions.items():
+            if f"[{emotion}]" in response:
+                expression = emotion
+                action = action_type
+                break
         
         return expression, action
     
@@ -126,12 +156,18 @@ class AIController:
                 audio_config=audio_config
             )
             
-            # 임시 파일로 저장
-            with open("temp_speech.mp3", "wb") as out:
-                out.write(response.audio_content)
+            # MP3 데이터를 WAV로 변환
+            audio_segment = AudioSegment.from_mp3(io.BytesIO(response.audio_content))
+            audio_data = audio_segment.raw_data
             
-            # TODO: 실제 오디오 출력 구현
-            # 현재는 파일로만 저장
+            # 오디오 데이터를 청크 단위로 재생
+            chunk_size = self.CHUNK * 2  # 16비트 오디오이므로 2를 곱함
+            for i in range(0, len(audio_data), chunk_size):
+                chunk = audio_data[i:i + chunk_size]
+                if len(chunk) < chunk_size:
+                    # 마지막 청크를 패딩
+                    chunk = chunk + b'\x00' * (chunk_size - len(chunk))
+                self.output_stream.write(chunk)
             
         except Exception as e:
             print(f"TTS 출력 중 오류 발생: {e}")
@@ -193,4 +229,6 @@ class AIController:
         self.running = False
         self.stream.stop_stream()
         self.stream.close()
+        self.output_stream.stop_stream()
+        self.output_stream.close()
         self.audio.terminate() 

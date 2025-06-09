@@ -1,6 +1,6 @@
 PyAudio==0.2.14
 openai-whisper==20231117
-openai==0.28.1
+openai==1.17.1
 python-dotenv==1.0.1
 whisper
 google-cloud-texttospeech
