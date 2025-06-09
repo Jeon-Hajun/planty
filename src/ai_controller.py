@@ -11,6 +11,7 @@ from google.cloud import texttospeech
 from pydub import AudioSegment
 import tempfile
 from google.cloud import speech
+import re
 
 class AIController:
     def __init__(self, state):
@@ -62,111 +63,80 @@ class AIController:
         self.speech_client = speech.SpeechClient()
    
     def _get_gpt_response(self, text):
-        """GPT 응답 생성"""
+        """GPT를 사용하여 응답을 생성합니다."""
         try:
-            response = openai.ChatCompletion.create(
+            # GPT API 호출
+            response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": """당신은 식물을 돌보는 AI 어시스턴트 Planty입니다. 
-                    당신의 주요 역할은 다음과 같습니다:
-                    1. 식물 관리에 대한 전문적인 조언 제공
-                    2. 식물의 건강 상태 진단 및 해결책 제시
-                    3. 식물 관련 질문에 대한 친절하고 정확한 답변
-                    4. 사용자의 식물 관리 습관 개선을 위한 제안
-                    
-                    대화 스타일:
-                    - 친근하고 자연스러운 톤 사용
-                    - 전문적인 지식과 실용적인 조언 균형있게 제공
-                    - 사용자의 감정에 공감하며 대화
-                    - 명확하고 이해하기 쉬운 설명 제공
-                    
-                    감정 표현:
-                    - 행복/기쁨: [happy] (좋아, 행복, 기쁘, 감사, 즐거운, 성공, 완벽, 최고)
-                    - 걱정/불안: [worried] (슬프, 걱정, 불안, 힘들, 어려운, 주의, 조심)
-                    - 피곤/졸림: [sleepy] (피곤, 졸리, 쉬고 싶, 휴식, 잠)
-                    - 신남/놀람: [excited] (와!, 대박, 놀라운, 신기한, 멋진)
-                    - 생각중: [thinking] (음, 그렇군, 생각해볼게, 잠시만)
-                    
-                    응답 형식:
-                    [감정] [주요 메시지] [추가 설명/조언]"""},
+                    {"role": "system", "content": """당신은 Planty라는 AI 식물 친구입니다. 
+                    친근하고 자연스럽게 대화하세요.
+                    응답은 반드시 한국어로 해주세요.
+                    응답의 마지막에는 [표정]을 표시해주세요.
+                    표정은 다음 중 하나여야 합니다: happy, worried, sleepy, excited, thinking, neutral"""},
                     {"role": "user", "content": text}
                 ],
                 temperature=0.7,
                 max_tokens=150
             )
-            return response.choices[0].message.content.strip()
+            
+            # 응답 추출
+            gpt_response = response.choices[0].message.content
+            print(f"GPT 응답: {gpt_response}")
+            
+            return gpt_response
+            
         except Exception as e:
-            print(f"GPT 응답 생성 중 오류 발생: {e}")
-            return "죄송합니다. 응답을 생성하는데 문제가 발생했습니다."
+            print(f"GPT 응답 생성 중 오류 발생: {str(e)}")
+            return "죄송합니다. 지금은 대화하기 어려운 것 같아요. [neutral]"
     
     def _parse_response(self, response):
-        """응답에서 표정과 행동 추출"""
-        # 기본값
-        expression = "neutral"
-        action = "idle"
-        
-        # 감정 태그에 따른 행동 매핑
-        emotion_actions = {
-            "happy": "waving",
-            "worried": "shaking",
-            "sleepy": "idle",
-            "excited": "jumping",
-            "thinking": "thinking"
-        }
-        
-        # 응답에서 감정 태그 검색
-        for emotion, action_type in emotion_actions.items():
-            if f"[{emotion}]" in response:
-                expression = emotion
-                action = action_type
-                break
-        
-        return expression, action
+        """GPT 응답에서 표정을 추출합니다."""
+        try:
+            # [표정] 형식 찾기
+            match = re.search(r'\[(happy|worried|sleepy|excited|thinking|neutral)\]', response)
+            if match:
+                expression = match.group(1)
+            else:
+                expression = "neutral"
+            
+            return expression, None  # 행동은 더 이상 사용하지 않음
+            
+        except Exception as e:
+            print(f"응답 파싱 중 오류 발생: {str(e)}")
+            return "neutral", None
     
     def _speak(self, text):
-        """TTS로 음성 출력"""
+        """TTS로 음성을 출력합니다."""
         try:
-            # SSML 생성
-            ssml = f"""
-            <speak>
-                <prosody rate="slow" pitch="+0.5st">
-                    {text}
-                </prosody>
-            </speak>
-            """
-            
-            # 음성 설정
+            # TTS 요청 설정
+            synthesis_input = texttospeech.SynthesisInput(text=text)
             voice = texttospeech.VoiceSelectionParams(
                 language_code="ko-KR",
-                name="ko-KR-Wavenet-A",
+                name="ko-KR-Neural2-A",
                 ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
             )
-            
-            # 오디오 설정 - WAV 형식으로 변경
             audio_config = texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-                speaking_rate=0.9,
-                pitch=0.0
+                audio_encoding=texttospeech.AudioEncoding.MP3
             )
             
             # TTS 요청
-            synthesis_input = texttospeech.SynthesisInput(ssml=ssml)
             response = self.tts_client.synthesize_speech(
                 input=synthesis_input,
                 voice=voice,
                 audio_config=audio_config
             )
             
-            # WAV 데이터를 청크 단위로 재생
-            chunk_size = self.CHUNK * 2  # 16비트 오디오이므로 2를 곱함
-            audio_data = response.audio_content
+            # 임시 파일로 저장
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                temp_file.write(response.audio_content)
+                temp_file_path = temp_file.name
             
-            for i in range(0, len(audio_data), chunk_size):
-                chunk = audio_data[i:i + chunk_size]
-                if len(chunk) < chunk_size:
-                    # 마지막 청크를 패딩
-                    chunk = chunk + b'\x00' * (chunk_size - len(chunk))
-                self.output_stream.write(chunk)
+            # 음성 재생
+            os.system(f"mpg123 {temp_file_path}")
+            
+            # 임시 파일 삭제
+            os.unlink(temp_file_path)
             
         except Exception as e:
             print(f"TTS 출력 중 오류 발생: {e}")
@@ -196,7 +166,11 @@ class AIController:
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
                 language_code='ko-KR',
-                enable_automatic_punctuation=True
+                model='latest_long',
+                use_enhanced=True,
+                enable_automatic_punctuation=True,
+                enable_spoken_punctuation=True,
+                enable_spoken_emojis=True
             )
             
             response = self.speech_client.recognize(config=config, audio=audio)
@@ -212,11 +186,11 @@ class AIController:
                 response = self._get_gpt_response(transcript)
                 
                 # 표정과 행동 추출
-                expression, action = self._parse_response(response)
-                print(f"표정: {expression}, 행동: {action}")
+                expression, _ = self._parse_response(response)
+                print(f"표정: {expression}")
                 
                 # 상태 업데이트
-                self.state.update(expression=expression, action=action, is_speaking=True)
+                self.state.update(expression=expression, is_speaking=True)
                 
                 # 음성 합성 및 재생
                 self._speak(response)
