@@ -5,21 +5,25 @@ Planty는 식물을 돌보는 AI 어시스턴트입니다.
 ## 기능
 
 - 음성 인식 및 대화
+  - "플랜티" 또는 "planty" 키워드로 활성화
+  - 5초 동안 음성 수집
+  - 자연스러운 대화형 응답
 - 식물 상태 모니터링
 - 실시간 센서 데이터 수집
 - 웹 대시보드
 
 ## 시스템 요구사항
 
-- Python 3.8 이상
-- 마이크와 스피커가 연결된 컴퓨터 또는 라즈베리파이
+- 라즈베리파이 (Raspberry Pi)
+- 마이크와 스피커 연결
 - 인터넷 연결 (OpenAI API, Google Cloud TTS API 사용)
 
 ## 설치
 
-1. 필요한 패키지 설치:
+1. 설치 스크립트 실행:
 ```bash
-pip install -r requirements.txt
+chmod +x install.sh
+./install.sh
 ```
 
 2. API 키 설정:
@@ -33,17 +37,32 @@ pip install -r requirements.txt
    ```
    
    - Google Cloud TTS 설정:
-     - `credentials` 폴더 생성:
-     ```bash
-     mkdir credentials
-     ```
-     - Google Cloud Console에서 서비스 계정 키를 다운로드하여 `credentials/google_credentials.json`으로 저장
+     - Google Cloud Console에서 서비스 계정 키를 다운로드
+     - `credentials/google_credentials.json`으로 저장
 
 ## 실행
 
+1. 가상환경 활성화:
+```bash
+source venv/bin/activate
+```
+
+2. 환경 변수 설정:
+```bash
+export OPENAI_API_KEY=your_openai_api_key
+export GOOGLE_APPLICATION_CREDENTIALS=credentials/google_credentials.json
+```
+
+3. 프로그램 실행:
 ```bash
 python src/main.py
 ```
+
+## 음성 인식 사용법
+
+1. "플랜티" 또는 "planty"라고 말하면 시스템이 활성화됩니다.
+2. 활성화 후 5초 동안 말하면 음성이 인식됩니다.
+3. 인식된 음성에 따라 AI가 응답합니다.
 
 ## 시스템 아키텍처
 
@@ -69,13 +88,13 @@ graph TD
     subgraph External Services
         OpenAI[OpenAI API (GPT-4o-mini)]
         GoogleTTS[Google Cloud TTS API]
-        Whisper[Whisper Model (Local)]
+        GoogleSTT[Google Cloud Speech-to-Text API]
         PlantSensors[실제 식물 센서 (TODO)]
     end
 
     User -->|음성 명령| Microphone
     Microphone --> AIController
-    AIController -->|텍스트 변환| Whisper
+    AIController -->|텍스트 변환| GoogleSTT
     AIController -->|대화 처리| OpenAI
     OpenAI --> AIController
     AIController -->|음성 합성| GoogleTTS
@@ -101,7 +120,7 @@ graph TD
 *   **`main.py`**: 애플리케이션의 메인 진입점입니다. `GlobalState`, `AIController`, `CircuitController`, `Dashboard`를 초기화하고, 각 컨트롤러를 별도의 스레드로 실행하여 시스템이 동시에 여러 작업을 수행할 수 있도록 합니다.
 *   **`GlobalState`**: 시스템의 현재 상태(식물의 표정, 행동)와 모든 센서 데이터를 중앙에서 관리하는 객체입니다. 다른 컴포넌트들은 이 `GlobalState`를 통해 데이터를 공유하고 업데이트합니다.
 *   **`AIController`**: 사용자의 음성 명령을 처리하고 응답을 생성합니다. 
-    *   **음성 인식**: 마이크 입력을 받아 로컬 `Whisper` 모델을 사용하여 텍스트로 변환합니다.
+    *   **음성 인식**: 마이크 입력을 받아 Google Cloud Speech-to-Text API를 사용하여 텍스트로 변환합니다.
     *   **대화 처리**: 인식된 텍스트를 `gpt-4o-mini` 모델(OpenAI API)로 전송하여 적절한 식물 관리 조언이나 대화 응답을 생성합니다.
     *   **음성 합성**: 생성된 텍스트 응답을 Google Cloud TTS API를 통해 음성으로 변환하여 스피커로 출력합니다.
     *   **상태 업데이트**: 대화 내용에 따라 `GlobalState`의 식물 표정 및 행동을 업데이트합니다.

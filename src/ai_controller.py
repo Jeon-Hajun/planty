@@ -234,23 +234,15 @@ class AIController:
             
             while self.running:
                 if not self.state.is_speaking:
-                    print("\n[음성 인식] 음성 수집 중...")
+                    print("\n[음성 인식] 5초 동안 음성 수집 중...")
                     frames = []
-                    silence_frames = 0
-                    max_silence_frames = int(RATE / CHUNK * 2.0)  # 2초 동안 무음이면 음성 종료로 판단
                     
-                    while silence_frames < max_silence_frames:
+                    # 5초 동안 오디오 데이터 수집
+                    for i in range(0, int(RATE / CHUNK * 5)):
                         data = stream.read(CHUNK)
                         frames.append(data)
-                        
-                        # 무음 감지
-                        if self._is_silence(data):
-                            silence_frames += 1
-                            if silence_frames % 10 == 0:  # 10프레임마다 무음 상태 출력
-                                print(".", end="", flush=True)
-                        else:
-                            silence_frames = 0
-                            print("음성 감지 중...", end="\r", flush=True)
+                        if i % 10 == 0:  # 진행 상태 표시
+                            print(".", end="", flush=True)
                     
                     print("\n[음성 인식] 음성 수집 완료")
                     
