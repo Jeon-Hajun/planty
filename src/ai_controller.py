@@ -8,6 +8,9 @@ import threading
 import queue
 from dotenv import load_dotenv
 from google.cloud import texttospeech
+from pydub import AudioSegment
+import tempfile
+from google.cloud import speech
 
 class AIController:
     def __init__(self, state):
@@ -54,7 +57,10 @@ class AIController:
         
         # 음성 인식기 초기화
         self.recognizer = sr.Recognizer()
-    
+        
+        # Google Speech-to-Text 클라이언트 초기화
+        self.speech_client = speech.SpeechClient()
+   
     def _get_gpt_response(self, text):
         """GPT 응답 생성"""
         try:
@@ -165,73 +171,105 @@ class AIController:
         except Exception as e:
             print(f"TTS 출력 중 오류 발생: {e}")
     
-    def _process_audio(self):
-        """오디오 처리 스레드"""
-        print("음성 인식 시작...")
-        is_processing = False  # 응답 처리 중인지 확인하는 플래그
-        
-        while self.running:
-            try:
-                if is_processing:
-                    continue  # 응답 처리 중이면 다음 인식 건너뛰기
+    def _process_audio(self, audio_data):
+        """오디오 데이터를 처리하고 음성을 인식합니다."""
+        try:
+            # 오디오 데이터를 WAV 형식으로 변환
+            audio_segment = AudioSegment(
+                audio_data,
+                sample_width=2,
+                frame_rate=16000,
+                channels=1
+            )
+            
+            # 임시 WAV 파일로 저장
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                audio_segment.export(temp_file.name, format='wav')
+                temp_file_path = temp_file.name
+            
+            # Google Speech-to-Text로 음성 인식
+            with open(temp_file_path, 'rb') as audio_file:
+                content = audio_file.read()
+            
+            audio = speech.RecognitionAudio(content=content)
+            config = speech.RecognitionConfig(
+                encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+                sample_rate_hertz=16000,
+                language_code='ko-KR',
+                enable_automatic_punctuation=True
+            )
+            
+            response = self.speech_client.recognize(config=config, audio=audio)
+            
+            # 임시 파일 삭제
+            os.unlink(temp_file_path)
+            
+            if response.results:
+                transcript = response.results[0].alternatives[0].transcript
+                print(f"인식된 음성: {transcript}")
                 
-                print("\n음성을 인식 중입니다...")
+                # 음성 인식 결과를 웹소켓을 통해 전송
+                self.websocket_server.broadcast({
+                    'type': 'voice_recognition',
+                    'text': transcript
+                })
                 
-                # 오디오 데이터 수집
+                # 응답 생성
+                response = self._get_gpt_response(transcript)
+                
+                # 음성 합성 및 재생
+                self._speak(response)
+                
+                return transcript
+            
+            return None
+            
+        except Exception as e:
+            print(f"음성 인식 중 오류 발생: {str(e)}")
+            return None
+
+    def start_voice_recognition(self):
+        """음성 인식을 시작합니다."""
+        try:
+            # 마이크 설정
+            CHUNK = 1024
+            FORMAT = pyaudio.paInt16
+            CHANNELS = 1
+            RATE = 16000
+            
+            p = pyaudio.PyAudio()
+            stream = p.open(
+                format=FORMAT,
+                channels=CHANNELS,
+                rate=RATE,
+                input=True,
+                frames_per_buffer=CHUNK
+            )
+            
+            print("음성 인식을 시작합니다...")
+            
+            while True:
                 frames = []
-                for _ in range(0, int(self.RATE / self.CHUNK * 5)):  # 5초 녹음
-                    data = self.stream.read(self.CHUNK)
+                # 5초 동안 오디오 데이터 수집
+                for _ in range(0, int(RATE / CHUNK * 5)):
+                    data = stream.read(CHUNK)
                     frames.append(data)
                 
-                # 오디오 데이터를 파일로 저장
-                with wave.open("temp_audio.wav", 'wb') as wf:
-                    wf.setnchannels(self.CHANNELS)
-                    wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
-                    wf.setframerate(self.RATE)
-                    wf.writeframes(b''.join(frames))
+                # 수집된 오디오 데이터 처리
+                audio_data = b''.join(frames)
+                self._process_audio(audio_data)
                 
-                # Whisper로 음성 인식 (한국어 설정)
-                result = self.whisper_model.transcribe(
-                    "temp_audio.wav",
-                    language="ko",
-                    fp16=False  # CPU 사용 시 FP32 사용
-                )
-                text = result["text"]
-                print(f"음성을 감지하였습니다: {text}")
-                
-                # 키워드 감지
-                if "플랜티" in text.lower() or "planty" in text.lower():
-                    is_processing = True  # 응답 처리 시작
-                    print("\n키워드 감지됨! 플랜티가 깨어났습니다.")
-                    
-                    # GPT 응답 생성
-                    response = self._get_gpt_response(text)
-                    print(f"\nGPT 응답: {response}")
-                    
-                    # 표정과 행동 추출
-                    expression, action = self._parse_response(response)
-                    print(f"표정: {expression}, 행동: {action}")
-                    
-                    # 상태 업데이트
-                    self.state.update(expression=expression, action=action, is_speaking=True)
-                    
-                    # TTS로 음성 출력
-                    self._speak(response)
-                    
-                    # 상태 업데이트
-                    self.state.update(is_speaking=False)
-                    is_processing = False  # 응답 처리 완료
-                else:
-                    print("키워드가 감지되지 않았습니다. (플랜티 또는 planty)")
-                
-            except Exception as e:
-                print(f"오디오 처리 중 오류 발생: {e}")
-                is_processing = False  # 오류 발생 시 처리 상태 초기화
+        except Exception as e:
+            print(f"음성 인식 중 오류 발생: {str(e)}")
+        finally:
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
     
     def run(self):
         """AI 컨트롤러 실행"""
         # 오디오 처리 스레드 시작
-        process_thread = threading.Thread(target=self._process_audio)
+        process_thread = threading.Thread(target=self.start_voice_recognition)
         process_thread.start()
     
     def stop(self):
@@ -241,4 +279,4 @@ class AIController:
         self.stream.close()
         self.output_stream.stop_stream()
         self.output_stream.close()
-        self.audio.terminate() 
+        self.audio.terminate()

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <!-- 얼굴 -->
+    <circle cx="100" cy="100" r="80" fill="#4CAF50" stroke="#388E3C" stroke-width="4"/>
+    <!-- 눈 -->
+    <circle cx="60" cy="80" r="15" fill="white"/>
+    <circle cx="140" cy="80" r="15" fill="white"/>
+    <!-- 입 -->
+    <path d="M60 110 Q100 150 140 110" stroke="white" stroke-width="8" fill="none"/>
+    <!-- 별 -->
+    <path d="M30 30 L35 40 L45 40 L37 47 L40 57 L30 52 L20 57 L23 47 L15 40 L25 40 Z" fill="white"/>
+    <path d="M170 30 L175 40 L185 40 L177 47 L180 57 L170 52 L160 57 L163 47 L155 40 L165 40 Z" fill="white"/>
+</svg> 

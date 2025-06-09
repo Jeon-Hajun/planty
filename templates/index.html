@@ -15,8 +15,8 @@
             align-items: center;
             min-height: 100vh;
         }
-        .sensor-container {
-            max-width: 600px;
+        .container {
+            max-width: 1000px;
             width: 100%;
             padding: 30px;
             background: linear-gradient(135deg, #e0f2f7, #bbdefb);
@@ -30,6 +30,12 @@
             margin-bottom: 30px;
             font-size: 2.5em;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 30px;
         }
         .sensor-grid {
             display: grid;
@@ -59,27 +65,103 @@
             color: #0d47a1;
             margin-bottom: 0;
         }
+        .control-panel {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .control-panel h2 {
+            color: #2196f3;
+            margin-bottom: 20px;
+        }
+        .control-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .control-button {
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: #2196f3;
+            color: white;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        .control-button:hover {
+            background: #1976d2;
+        }
+        .control-button:active {
+            background: #1565c0;
+        }
+        .expression-display {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .expression-display h2 {
+            color: #2196f3;
+            margin-bottom: 20px;
+        }
+        .expression {
+            font-size: 2em;
+            font-weight: bold;
+            color: #0d47a1;
+            margin: 20px 0;
+        }
+        .expression-image {
+            max-width: 200px;
+            margin: 20px auto;
+        }
     </style>
 </head>
 <body>
-    <div class="sensor-container">
-        <h1>Planty Sensor Data</h1>
-        <div class="sensor-grid">
-            <div class="sensor-item">
-                <h3>습도</h3>
-                <p id="humidity">--%</p>
+    <div class="container">
+        <h1>Planty Dashboard</h1>
+        
+        <!-- 표정 표시 섹션 -->
+        <div class="expression-display">
+            <h2>Planty의 표정</h2>
+            <div class="expression" id="expression-text">happy</div>
+            <img id="expression-image" class="expression-image" src="/static/images/happy.svg" alt="Planty Expression">
+        </div>
+
+        <div class="grid">
+            <!-- 센서 데이터 섹션 -->
+            <div class="sensor-section">
+                <h2>센서 데이터</h2>
+                <div class="sensor-grid">
+                    <div class="sensor-item">
+                        <h3>습도</h3>
+                        <p id="humidity">--%</p>
+                    </div>
+                    <div class="sensor-item">
+                        <h3>온도</h3>
+                        <p id="temperature">--°C</p>
+                    </div>
+                    <div class="sensor-item">
+                        <h3>조도</h3>
+                        <p id="light">-- lux</p>
+                    </div>
+                    <div class="sensor-item">
+                        <h3>영양분</h3>
+                        <p id="nutrients">--%</p>
+                    </div>
+                </div>
             </div>
-            <div class="sensor-item">
-                <h3>온도</h3>
-                <p id="temperature">--°C</p>
-            </div>
-            <div class="sensor-item">
-                <h3>조도</h3>
-                <p id="light">-- lux</p>
-            </div>
-            <div class="sensor-item">
-                <h3>영양분</h3>
-                <p id="nutrients">--%</p>
+
+            <!-- 제어 패널 섹션 -->
+            <div class="control-panel">
+                <h2>제어 패널</h2>
+                <div class="control-buttons">
+                    <button class="control-button" onclick="toggleLED()">LED 켜기/끄기</button>
+                    <button class="control-button" onclick="startTimelapse()">타임랩스 시작</button>
+                    <button class="control-button" onclick="waterPlant()">물주기</button>
+                </div>
             </div>
         </div>
     </div>
@@ -90,17 +172,38 @@
             fetch('/state')
                 .then(response => response.json())
                 .then(data => {
+                    // 센서 데이터 업데이트
                     document.getElementById('humidity').textContent = `${data.sensors.humidity}%`;
                     document.getElementById('temperature').textContent = `${data.sensors.temperature}°C`;
                     document.getElementById('light').textContent = `${data.sensors.light} lux`;
                     document.getElementById('nutrients').textContent = `${data.sensors.nutrients}%`;
+                    
+                    // 표정 업데이트
+                    document.getElementById('expression-text').textContent = data.expression;
+                    document.getElementById('expression-image').src = `/static/images/${data.expression}.svg`;
                 })
                 .catch(error => {
-                    console.error('센서 데이터 업데이트 중 오류 발생:', error);
+                    console.error('데이터 업데이트 중 오류 발생:', error);
                 });
         }
 
-        // 1초마다 센서 데이터 업데이트
+        // 제어 함수들
+        function toggleLED() {
+            console.log('LED 토글 요청');
+            // TODO: LED 제어 API 호출
+        }
+
+        function startTimelapse() {
+            console.log('타임랩스 시작 요청');
+            // TODO: 타임랩스 API 호출
+        }
+
+        function waterPlant() {
+            console.log('물주기 요청');
+            // TODO: 물주기 API 호출
+        }
+
+        // 1초마다 데이터 업데이트
         setInterval(updateSensorData, 1000);
         
         // 초기 데이터 로드
