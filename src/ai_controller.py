@@ -208,17 +208,21 @@ class AIController:
                 transcript = response.results[0].alternatives[0].transcript
                 print(f"인식된 음성: {transcript}")
                 
-                # 음성 인식 결과를 웹소켓을 통해 전송
-                self.websocket_server.broadcast({
-                    'type': 'voice_recognition',
-                    'text': transcript
-                })
-                
                 # 응답 생성
                 response = self._get_gpt_response(transcript)
                 
+                # 표정과 행동 추출
+                expression, action = self._parse_response(response)
+                print(f"표정: {expression}, 행동: {action}")
+                
+                # 상태 업데이트
+                self.state.update(expression=expression, action=action, is_speaking=True)
+                
                 # 음성 합성 및 재생
                 self._speak(response)
+                
+                # 상태 업데이트
+                self.state.update(is_speaking=False)
                 
                 return transcript
             
