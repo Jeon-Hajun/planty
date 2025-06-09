@@ -20,7 +20,7 @@ class AIController:
         load_dotenv()
         
         # OpenAI API 키 설정
-        self.client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        openai.api_key = os.getenv('OPENAI_API_KEY')
         
         # Google Cloud TTS 클라이언트 초기화
         self.tts_client = texttospeech.TextToSpeechClient()
@@ -72,7 +72,7 @@ class AIController:
         """GPT를 사용하여 응답을 생성합니다."""
         try:
             # GPT API 호출
-            response = self.client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": """당신은 Planty라는 AI 식물 친구입니다. 
