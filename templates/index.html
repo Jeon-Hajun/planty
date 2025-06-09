@@ -55,6 +55,32 @@
             margin: 10px auto;
             display: block;
         }
+        .sensor-data {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+        .sensor-item {
+            text-align: center;
+            padding: 10px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .sensor-item h3 {
+            color: #27ae60;
+            margin: 0 0 5px 0;
+            font-size: 1.1em;
+        }
+        .sensor-value {
+            font-size: 1.5em;
+            color: #2c3e50;
+            font-weight: bold;
+        }
         .controls {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -84,15 +110,28 @@
         button:hover {
             background-color: #219a52;
         }
-        .led-control {
+        button.active {
+            background-color: #e74c3c;
+        }
+        button.active:hover {
+            background-color: #c0392b;
+        }
+        .status-text {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-top: 5px;
+            text-align: center;
+        }
+        .timelapse-controls {
             display: flex;
             flex-direction: column;
             gap: 10px;
         }
-        .led-status {
+        .timelapse-status {
             font-size: 0.9em;
             color: #7f8c8d;
             margin-top: 5px;
+            text-align: center;
         }
         .voice-recognition {
             margin-top: 20px;
@@ -117,6 +156,14 @@
             margin-top: 10px;
             animation: pulse 1.5s infinite;
         }
+        .recognized-text {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            min-height: 1.5em;
+        }
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -136,27 +183,46 @@
             <div class="expression" id="expression-text">happy</div>
             <img id="expression-image" class="expression-image" src="/static/images/happy.svg" alt="Planty Expression">
         </div>
+
+        <div class="sensor-data">
+            <div class="sensor-item">
+                <h3>습도</h3>
+                <div class="sensor-value" id="humidity-value">0%</div>
+            </div>
+            <div class="sensor-item">
+                <h3>온도</h3>
+                <div class="sensor-value" id="temperature-value">0°C</div>
+            </div>
+            <div class="sensor-item">
+                <h3>조도</h3>
+                <div class="sensor-value" id="light-value">0 lux</div>
+            </div>
+            <div class="sensor-item">
+                <h3>영양분</h3>
+                <div class="sensor-value" id="nutrients-value">0%</div>
+            </div>
+        </div>
         
         <div class="controls">
             <div class="control-group">
                 <h3>LED 제어</h3>
-                <div class="led-control">
-                    <button onclick="toggleLED('red')">빨간색 LED</button>
-                    <div class="led-status" id="red-led-status">상태: 꺼짐</div>
-                    
-                    <button onclick="toggleLED('green')">초록색 LED</button>
-                    <div class="led-status" id="green-led-status">상태: 꺼짐</div>
-                    
-                    <button onclick="toggleLED('blue')">파란색 LED</button>
-                    <div class="led-status" id="blue-led-status">상태: 꺼짐</div>
-                </div>
+                <button id="led-toggle" onclick="toggleLED()">LED 켜기</button>
+                <div class="status-text" id="led-status">상태: 꺼짐</div>
             </div>
             
             <div class="control-group">
-                <h3>모터 제어</h3>
-                <button onclick="controlMotor('forward')">앞으로</button>
-                <button onclick="controlMotor('backward')">뒤로</button>
-                <button onclick="controlMotor('stop')">정지</button>
+                <h3>물주기</h3>
+                <button id="water-toggle" onclick="toggleWatering()">물주기 시작</button>
+                <div class="status-text" id="watering-status">상태: 대기 중</div>
+            </div>
+
+            <div class="control-group">
+                <h3>타임랩스</h3>
+                <div class="timelapse-controls">
+                    <button id="timelapse-toggle" onclick="toggleTimelapse()">타임랩스 시작</button>
+                    <button onclick="downloadTimelapse()">타임랩스 다운로드</button>
+                </div>
+                <div class="timelapse-status" id="timelapse-status">상태: 대기 중</div>
             </div>
         </div>
         
@@ -164,36 +230,11 @@
             <h3>음성 인식</h3>
             <div class="voice-text" id="voice-text">음성을 인식 중입니다...</div>
             <div class="listening-indicator" id="listening-indicator">음성 인식 중...</div>
+            <div class="recognized-text" id="recognized-text"></div>
         </div>
     </div>
 
     <script>
-        // LED 상태 업데이트
-        function updateLEDStatus(color, isOn) {
-            const statusElement = document.getElementById(`${color}-led-status`);
-            statusElement.textContent = `상태: ${isOn ? '켜짐' : '꺼짐'}`;
-        }
-
-        // LED 토글
-        function toggleLED(color) {
-            fetch(`/toggle_led/${color}`, { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    updateLEDStatus(color, data.is_on);
-                })
-                .catch(error => {
-                    console.error('LED 제어 중 오류 발생:', error);
-                });
-        }
-
-        // 모터 제어
-        function controlMotor(direction) {
-            fetch(`/control_motor/${direction}`, { method: 'POST' })
-                .catch(error => {
-                    console.error('모터 제어 중 오류 발생:', error);
-                });
-        }
-
         // 상태 업데이트 함수
         function updateState() {
             fetch('/state')
@@ -203,6 +244,12 @@
                     document.getElementById('expression-text').textContent = data.expression;
                     document.getElementById('expression-image').src = `/static/images/${data.expression}.svg`;
                     
+                    // 센서 데이터 업데이트
+                    document.getElementById('humidity-value').textContent = `${data.sensors.humidity}%`;
+                    document.getElementById('temperature-value').textContent = `${data.sensors.temperature}°C`;
+                    document.getElementById('light-value').textContent = `${data.sensors.light} lux`;
+                    document.getElementById('nutrients-value').textContent = `${data.sensors.nutrients}%`;
+                    
                     // 음성 인식 상태 업데이트
                     const listeningIndicator = document.getElementById('listening-indicator');
                     if (data.is_listening) {
@@ -210,6 +257,103 @@
                     } else {
                         listeningIndicator.style.display = 'none';
                     }
+                });
+        }
+
+        // LED 토글 함수
+        function toggleLED() {
+            const button = document.getElementById('led-toggle');
+            const status = document.getElementById('led-status');
+            const isActive = button.classList.contains('active');
+            
+            fetch('/toggle_led', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ state: !isActive })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_on) {
+                    button.textContent = 'LED 끄기';
+                    button.classList.add('active');
+                    status.textContent = '상태: 켜짐';
+                } else {
+                    button.textContent = 'LED 켜기';
+                    button.classList.remove('active');
+                    status.textContent = '상태: 꺼짐';
+                }
+            });
+        }
+
+        // 물주기 토글 함수
+        function toggleWatering() {
+            const button = document.getElementById('water-toggle');
+            const status = document.getElementById('watering-status');
+            const isActive = button.classList.contains('active');
+            
+            fetch('/toggle_watering', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ state: !isActive })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_active) {
+                    button.textContent = '물주기 중지';
+                    button.classList.add('active');
+                    status.textContent = '상태: 물주는 중';
+                } else {
+                    button.textContent = '물주기 시작';
+                    button.classList.remove('active');
+                    status.textContent = '상태: 대기 중';
+                }
+            });
+        }
+
+        // 타임랩스 토글 함수
+        function toggleTimelapse() {
+            const button = document.getElementById('timelapse-toggle');
+            const status = document.getElementById('timelapse-status');
+            const isActive = button.classList.contains('active');
+            
+            fetch('/toggle_timelapse', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ state: !isActive })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_active) {
+                    button.textContent = '타임랩스 중지';
+                    button.classList.add('active');
+                    status.textContent = '상태: 촬영 중';
+                } else {
+                    button.textContent = '타임랩스 시작';
+                    button.classList.remove('active');
+                    status.textContent = '상태: 대기 중';
+                }
+            });
+        }
+
+        // 타임랩스 다운로드 함수
+        function downloadTimelapse() {
+            fetch('/download_timelapse')
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'planty_timelapse.mp4';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
                 });
         }
 
