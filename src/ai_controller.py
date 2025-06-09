@@ -205,7 +205,7 @@ class AIController:
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
                 language_code="ko-KR",
-                model="chirp_2",
+                model="chirp",
                 enable_automatic_punctuation=True,
                 enable_word_time_offsets=True,
                 speech_contexts=[{
