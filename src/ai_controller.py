@@ -8,7 +8,6 @@ import threading
 import queue
 from dotenv import load_dotenv
 from google.cloud import texttospeech
-from openai import OpenAI
 
 class AIController:
     def __init__(self, state):
@@ -55,13 +54,11 @@ class AIController:
         
         # 음성 인식기 초기화
         self.recognizer = sr.Recognizer()
-        
-        self.client = OpenAI()
     
     def _get_gpt_response(self, text):
         """GPT 응답 생성"""
         try:
-            response = self.client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": """당신은 식물을 돌보는 AI 어시스턴트 Planty입니다. 
