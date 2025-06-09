@@ -12,6 +12,7 @@ from pydub import AudioSegment
 import tempfile
 from google.cloud import speech
 import re
+import time
 
 class AIController:
     def __init__(self, state):
@@ -271,10 +272,44 @@ class AIController:
 
     def run(self):
         """AI 컨트롤러 실행"""
+        print("[시스템] Planty 시작")
+        
         # 오디오 처리 스레드 시작
-        process_thread = threading.Thread(target=self.start_voice_recognition)
+        process_thread = threading.Thread(target=self._voice_recognition_loop)
         process_thread.start()
-    
+        
+        # 메인 스레드는 계속 실행
+        while self.running:
+            time.sleep(0.1)
+            
+    def _voice_recognition_loop(self):
+        """음성 인식 루프를 실행합니다."""
+        while self.running:
+            if not self.state.is_speaking:
+                # 음성 인식
+                transcript = self.start_voice_recognition()
+                
+                # 키워드가 감지되고, 현재 말하고 있지 않을 때만 처리
+                if transcript and not self.state.is_speaking:
+                    # 응답 생성
+                    response = self._get_gpt_response(transcript)
+                    
+                    # 표정 추출
+                    expression, _ = self._parse_response(response)
+                    print(f"[표정] {expression}")
+                    
+                    # 상태 업데이트
+                    self.state.update(expression=expression, is_speaking=True)
+                    
+                    # 음성 합성 및 재생
+                    emotion = self._process_gpt_response(response)
+                    
+                    # 상태 업데이트
+                    self.state.update(is_speaking=False)
+            
+            # 잠시 대기
+            time.sleep(0.1)
+
     def stop(self):
         """AI 컨트롤러 종료"""
         self.running = False
