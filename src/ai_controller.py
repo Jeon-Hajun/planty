@@ -12,6 +12,7 @@ from pydub import AudioSegment
 import tempfile
 from google.cloud import speech
 import re
+from gtts import gTTS
 
 class AIController:
     def __init__(self, state):
@@ -73,19 +74,31 @@ class AIController:
         try:
             print("\n[GPT] 응답 생성 중...")
             
+            # 현재 센서 데이터 가져오기
+            sensor_data = self.state.get_sensor_data()
+            sensor_info = f"""
+            현재 센서 데이터:
+            - 온도: {sensor_data['temperature']}°C
+            - 습도: {sensor_data['humidity']}%
+            - 토양 수분: {sensor_data['soil_moisture']}%
+            - 조도: {sensor_data['light']}lux
+            """
+            
             # GPT API 호출
             response = openai.ChatCompletion.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": """당신은 Planty라는 AI 식물 친구입니다. 
+                    {"role": "system", "content": f"""당신은 Planty라는 AI 식물 친구입니다. 
                     친근하고 자연스럽게 대화하세요.
-                    응답은 반드시 한국어로 해주세요.
+                    응답은 반드시 한 문장으로 해주세요.
                     응답의 마지막에는 [표정]을 표시해주세요.
-                    표정은 다음 중 하나여야 합니다: happy, worried, sleepy, excited, thinking, neutral"""},
+                    표정은 다음 중 하나여야 합니다: happy, worried, sleepy, excited, thinking, neutral
+                    
+                    {sensor_info}"""},
                     {"role": "user", "content": text}
                 ],
                 temperature=0.7,
-                max_tokens=150
+                max_tokens=100
             )
             
             # 응답 추출
@@ -114,44 +127,36 @@ class AIController:
             print(f"응답 파싱 중 오류 발생: {str(e)}")
             return "neutral", None
     
-    def _speak(self, text):
-        """TTS로 음성을 출력합니다."""
+    def _process_gpt_response(self, response):
+        """GPT 응답을 처리하고 TTS로 변환합니다."""
         try:
-            print("\n[TTS] 음성 합성 중...")
+            # 표정 추출
+            emotion_match = re.search(r'\[(.*?)\]$', response)
+            if emotion_match:
+                emotion = emotion_match.group(1)
+                # 표정 제외한 텍스트 추출
+                text = response[:emotion_match.start()].strip()
+            else:
+                emotion = "neutral"
+                text = response
+
+            # TTS 변환
+            print("\n[TTS] 음성 변환 중...")
+            tts = gTTS(text=text, lang='ko', slow=False)
+            tts.save("temp.mp3")
             
-            # TTS 요청 설정
-            synthesis_input = texttospeech.SynthesisInput(text=text)
-            voice = texttospeech.VoiceSelectionParams(
-                language_code="ko-KR",
-                name="ko-KR-Neural2-A",
-                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
-            )
-            audio_config = texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3
-            )
-            
-            # TTS 요청
-            response = self.tts_client.synthesize_speech(
-                input=synthesis_input,
-                voice=voice,
-                audio_config=audio_config
-            )
-            
-            # 임시 파일로 저장
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
-                temp_file.write(response.audio_content)
-                temp_file_path = temp_file.name
-            
-            print("[TTS] 음성 출력 중...")
             # 음성 재생
-            os.system(f"mpg123 -q {temp_file_path}")
+            print("[TTS] 음성 재생 중...")
+            os.system("mpg123 temp.mp3")
             
             # 임시 파일 삭제
-            os.unlink(temp_file_path)
-            print("[TTS] 음성 출력 완료")
+            os.remove("temp.mp3")
+            
+            return emotion
             
         except Exception as e:
-            print(f"[TTS] 오류 발생: {e}")
+            print(f"[TTS] 오류 발생: {str(e)}")
+            return "neutral"
     
     def _process_audio(self, audio_data):
         """오디오 데이터를 처리하고 음성을 인식합니다."""
@@ -180,11 +185,15 @@ class AIController:
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
                 language_code='ko-KR',
-                model='latest_long',
+                model='video',  # 더 정확한 인식을 위한 video 모델 사용
                 use_enhanced=True,
                 enable_automatic_punctuation=True,
                 enable_spoken_punctuation=True,
-                enable_spoken_emojis=True
+                enable_spoken_emojis=True,
+                speech_contexts=[{
+                    "phrases": ["플랜티", "planty"],
+                    "boost": 20.0  # 키워드 인식 정확도 향상
+                }]
             )
             
             response = self.speech_client.recognize(config=config, audio=audio)
@@ -257,7 +266,7 @@ class AIController:
                         self.state.update(expression=expression, is_speaking=True)
                         
                         # 음성 합성 및 재생
-                        self._speak(response)
+                        emotion = self._process_gpt_response(response)
                         
                         # 상태 업데이트
                         self.state.update(is_speaking=False)
