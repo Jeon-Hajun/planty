@@ -75,14 +75,7 @@ class AIController:
             print("\n[GPT] 응답 생성 중...")
             
             # 현재 센서 데이터 가져오기
-            sensor_data = self.state.get_sensor_data()
-            sensor_info = f"""
-            현재 센서 데이터:
-            - 온도: {sensor_data['temperature']}°C
-            - 습도: {sensor_data['humidity']}%
-            - 토양 수분: {sensor_data['soil_moisture']}%
-            - 조도: {sensor_data['light']}lux
-            """
+            sensor_data = self.state.sensors
             
             # GPT API 호출
             response = openai.ChatCompletion.create(
@@ -93,8 +86,15 @@ class AIController:
                     응답은 반드시 한 문장으로 해주세요.
                     응답의 마지막에는 [표정]을 표시해주세요.
                     표정은 다음 중 하나여야 합니다: happy, worried, sleepy, excited, thinking, neutral
-                    
-                    {sensor_info}"""},
+
+                    현재 센서 데이터:
+                    - 습도: {sensor_data['humidity']}%
+                    - 온도: {sensor_data['temperature']}°C
+                    - 조도: {sensor_data['light']} lux
+                    - 영양분: {sensor_data['nutrients']}%
+
+                    센서 데이터는 사용자가 물어볼 때만 언급하세요.
+                    일상적인 대화에서는 센서 데이터를 언급하지 않아도 됩니다."""},
                     {"role": "user", "content": text}
                 ],
                 temperature=0.7,
@@ -249,10 +249,10 @@ class AIController:
                 frames_per_buffer=self.CHUNK
             )
             
-            # 오디오 데이터 수집 (7초)
+            # 오디오 데이터 수집 (5초)
             print("[음성 인식] 음성 수집 중...")
             frames = []
-            for _ in range(0, int(self.RATE / self.CHUNK * 7)):
+            for _ in range(0, int(self.RATE / self.CHUNK * 5)):
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
                 frames.append(data)
             
