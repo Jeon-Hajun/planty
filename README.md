@@ -17,17 +17,21 @@ pip install -r requirements.txt
 ```
 
 2. API 키 설정:
-- `.env` 파일 생성:
-```bash
-echo "OPENAI_API_KEY=your_openai_api_key" > .env
-```
-
-3. Google Cloud TTS 설정:
-- `credentials` 폴더 생성:
-```bash
-mkdir credentials
-```
-- Google Cloud 인증 파일을 `credentials` 폴더에 복사
+   - `.env` 파일 생성:
+   ```bash
+   # OpenAI API 키
+   OPENAI_API_KEY=your_openai_api_key
+   
+   # Google Cloud TTS 인증 파일 경로
+   GOOGLE_APPLICATION_CREDENTIALS=credentials/google_credentials.json
+   ```
+   
+   - Google Cloud TTS 설정:
+     - `credentials` 폴더 생성:
+     ```bash
+     mkdir credentials
+     ```
+     - Google Cloud Console에서 서비스 계정 키를 다운로드하여 `credentials/google_credentials.json`으로 저장
 
 ## 실행
 
@@ -46,10 +50,7 @@ Planty/
 │   ├── ai_controller.py        # AI (음성인식, GPT, TTS) 관련
 │   └── main.py                 # 메인 실행 파일
 ├── tests/
-│   ├── __init__.py
-│   ├── test_circuit.py
-│   ├── test_dashboard.py
-│   └── test_ai.py
+│   └── __init__.py
 ├── templates/
 │   └── index.html
 ├── static/
