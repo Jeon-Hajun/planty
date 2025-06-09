@@ -71,6 +71,8 @@ class AIController:
     def _get_gpt_response(self, text):
         """GPT를 사용하여 응답을 생성합니다."""
         try:
+            print("\n[GPT] 응답 생성 중...")
+            
             # GPT API 호출
             response = openai.ChatCompletion.create(
                 model="gpt-4o-mini",
@@ -88,12 +90,12 @@ class AIController:
             
             # 응답 추출
             gpt_response = response.choices[0].message.content
-            print(f"GPT 응답: {gpt_response}")
+            print(f"[GPT] 응답 생성 완료: {gpt_response}")
             
             return gpt_response
             
         except Exception as e:
-            print(f"GPT 응답 생성 중 오류 발생: {str(e)}")
+            print(f"[GPT] 오류 발생: {str(e)}")
             return "죄송합니다. 지금은 대화하기 어려운 것 같아요. [neutral]"
     
     def _parse_response(self, response):
@@ -115,6 +117,8 @@ class AIController:
     def _speak(self, text):
         """TTS로 음성을 출력합니다."""
         try:
+            print("\n[TTS] 음성 합성 중...")
+            
             # TTS 요청 설정
             synthesis_input = texttospeech.SynthesisInput(text=text)
             voice = texttospeech.VoiceSelectionParams(
@@ -138,18 +142,22 @@ class AIController:
                 temp_file.write(response.audio_content)
                 temp_file_path = temp_file.name
             
+            print("[TTS] 음성 출력 중...")
             # 음성 재생
             os.system(f"mpg123 -q {temp_file_path}")
             
             # 임시 파일 삭제
             os.unlink(temp_file_path)
+            print("[TTS] 음성 출력 완료")
             
         except Exception as e:
-            print(f"TTS 출력 중 오류 발생: {e}")
+            print(f"[TTS] 오류 발생: {e}")
     
     def _process_audio(self, audio_data):
         """오디오 데이터를 처리하고 음성을 인식합니다."""
         try:
+            print("\n[음성 인식] 오디오 데이터 처리 중...")
+            
             # 오디오 데이터를 WAV 형식으로 변환
             audio_segment = AudioSegment(
                 audio_data,
@@ -186,30 +194,14 @@ class AIController:
             
             if response.results:
                 transcript = response.results[0].alternatives[0].transcript
-                print(f"인식된 음성: {transcript}")
-                
-                # 응답 생성
-                response = self._get_gpt_response(transcript)
-                
-                # 표정과 행동 추출
-                expression, _ = self._parse_response(response)
-                print(f"표정: {expression}")
-                
-                # 상태 업데이트
-                self.state.update(expression=expression, is_speaking=True)
-                
-                # 음성 합성 및 재생
-                self._speak(response)
-                
-                # 상태 업데이트
-                self.state.update(is_speaking=False)
-                
+                print(f"[음성 인식] 인식된 텍스트: {transcript}")
                 return transcript
             
+            print("[음성 인식] 인식된 텍스트 없음")
             return None
             
         except Exception as e:
-            print(f"음성 인식 중 오류 발생: {str(e)}")
+            print(f"[음성 인식] 오류 발생: {str(e)}")
             return None
 
     def start_voice_recognition(self):
@@ -230,43 +222,46 @@ class AIController:
                 frames_per_buffer=CHUNK
             )
             
-            print("음성 인식을 시작합니다...")
+            print("\n[시스템] 음성 인식 시작")
             
             while self.running:
-                frames = []
-                # 5초 동안 오디오 데이터 수집
-                for _ in range(0, int(RATE / CHUNK * 5)):
-                    data = stream.read(CHUNK)
-                    frames.append(data)
-                
-                # 수집된 오디오 데이터 처리
-                audio_data = b''.join(frames)
-                transcript = self._process_audio(audio_data)
-                
-                # 음성 인식 결과가 있고, 현재 말하고 있지 않을 때만 처리
-                if transcript and not self.state.is_speaking:
-                    # 응답 생성
-                    response = self._get_gpt_response(transcript)
+                if not self.state.is_speaking:
+                    print("\n[음성 인식] 5초 동안 음성 수집 중...")
+                    frames = []
+                    # 5초 동안 오디오 데이터 수집
+                    for _ in range(0, int(RATE / CHUNK * 5)):
+                        data = stream.read(CHUNK)
+                        frames.append(data)
                     
-                    # 표정 추출
-                    expression, _ = self._parse_response(response)
-                    print(f"표정: {expression}")
+                    # 수집된 오디오 데이터 처리
+                    audio_data = b''.join(frames)
+                    transcript = self._process_audio(audio_data)
                     
-                    # 상태 업데이트
-                    self.state.update(expression=expression, is_speaking=True)
-                    
-                    # 음성 합성 및 재생
-                    self._speak(response)
-                    
-                    # 상태 업데이트
-                    self.state.update(is_speaking=False)
+                    # 음성 인식 결과가 있고, 현재 말하고 있지 않을 때만 처리
+                    if transcript and not self.state.is_speaking:
+                        # 응답 생성
+                        response = self._get_gpt_response(transcript)
+                        
+                        # 표정 추출
+                        expression, _ = self._parse_response(response)
+                        print(f"[표정] {expression}")
+                        
+                        # 상태 업데이트
+                        self.state.update(expression=expression, is_speaking=True)
+                        
+                        # 음성 합성 및 재생
+                        self._speak(response)
+                        
+                        # 상태 업데이트
+                        self.state.update(is_speaking=False)
                 
         except Exception as e:
-            print(f"음성 인식 중 오류 발생: {str(e)}")
+            print(f"[시스템] 오류 발생: {str(e)}")
         finally:
             stream.stop_stream()
             stream.close()
             p.terminate()
+            print("\n[시스템] 음성 인식 종료")
     
     def run(self):
         """AI 컨트롤러 실행"""

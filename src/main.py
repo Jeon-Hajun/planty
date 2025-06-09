@@ -3,6 +3,15 @@ import time
 from circuit_controller import CircuitController
 from dashboard import Dashboard
 from ai_controller import AIController
+import os
+from flask import Flask, render_template, jsonify, request
+import logging
+
+# Flask 로그 레벨 설정
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
+app = Flask(__name__)
 
 class GlobalState:
     def __init__(self):
@@ -40,6 +49,24 @@ class GlobalState:
                 'last_update': self.last_update
             }
 
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/get_state')
+def get_state():
+    return jsonify(state.get_state())
+
+@app.route('/toggle_led/<color>', methods=['POST'])
+def toggle_led(color):
+    state.toggle_led(color)
+    return jsonify({'is_on': state.get_led_state(color)})
+
+@app.route('/control_motor/<direction>', methods=['POST'])
+def control_motor(direction):
+    state.control_motor(direction)
+    return jsonify({'status': 'success'})
+
 def main():
     # 전역 상태 초기화
     state = GlobalState()
@@ -59,6 +86,9 @@ def main():
         
         # 대시보드 실행 (메인 스레드)
         dashboard.run()
+        
+        # Flask 서버 시작
+        app.run(host='0.0.0.0', port=5000, debug=True)
         
     except KeyboardInterrupt:
         print("\n프로그램 종료 중...")
