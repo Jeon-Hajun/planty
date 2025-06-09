@@ -206,7 +206,6 @@ class AIController:
                 sample_rate_hertz=16000,
                 language_code="ko-KR",
                 model="chirp_2",
-                use_enhanced=True,
                 enable_automatic_punctuation=True,
                 enable_word_time_offsets=True,
                 speech_contexts=[{
