@@ -14,7 +14,7 @@ from google.cloud import speech
 import re
 
 class AIController:
-    def __init__(self):
+    def __init__(self, state):
         """AI 컨트롤러 초기화"""
         # 환경 변수 로드
         load_dotenv()
@@ -29,7 +29,7 @@ class AIController:
         self.speech_client = speech.SpeechClient()
         
         # 상태 관리
-        self.state = State()
+        self.state = state
         
         # 실행 상태
         self.running = True
