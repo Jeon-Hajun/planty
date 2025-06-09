@@ -168,8 +168,15 @@ class AIController:
     def _process_audio(self):
         """오디오 처리 스레드"""
         print("음성 인식 시작...")
+        is_processing = False  # 응답 처리 중인지 확인하는 플래그
+        
         while self.running:
             try:
+                if is_processing:
+                    continue  # 응답 처리 중이면 다음 인식 건너뛰기
+                
+                print("\n음성을 인식 중입니다...")
+                
                 # 오디오 데이터 수집
                 frames = []
                 for _ in range(0, int(self.RATE / self.CHUNK * 5)):  # 5초 녹음
@@ -190,11 +197,13 @@ class AIController:
                     fp16=False  # CPU 사용 시 FP32 사용
                 )
                 text = result["text"]
-                print(f"인식된 텍스트: {text}")
+                print(f"음성을 감지하였습니다: {text}")
                 
                 # 키워드 감지
                 if "플랜티" in text.lower() or "planty" in text.lower():
+                    is_processing = True  # 응답 처리 시작
                     print("\n키워드 감지됨! 플랜티가 깨어났습니다.")
+                    
                     # GPT 응답 생성
                     response = self._get_gpt_response(text)
                     print(f"\nGPT 응답: {response}")
@@ -211,11 +220,13 @@ class AIController:
                     
                     # 상태 업데이트
                     self.state.update(is_speaking=False)
+                    is_processing = False  # 응답 처리 완료
                 else:
                     print("키워드가 감지되지 않았습니다. (플랜티 또는 planty)")
                 
             except Exception as e:
                 print(f"오디오 처리 중 오류 발생: {e}")
+                is_processing = False  # 오류 발생 시 처리 상태 초기화
     
     def run(self):
         """AI 컨트롤러 실행"""
