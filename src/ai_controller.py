@@ -195,14 +195,22 @@ class AIController:
             if response.results:
                 transcript = response.results[0].alternatives[0].transcript
                 print(f"[음성 인식] 인식된 텍스트: {transcript}")
-                return transcript
+                
+                # 키워드 확인
+                if "플랜티" in transcript.lower() or "planty" in transcript.lower():
+                    print("[음성 인식] 키워드 감지됨!")
+                    return transcript
             
-            print("[음성 인식] 인식된 텍스트 없음")
+            print("[음성 인식] 키워드가 감지되지 않음")
             return None
             
         except Exception as e:
             print(f"[음성 인식] 오류 발생: {str(e)}")
             return None
+
+    def _is_silence(self, audio_data, threshold=500):
+        """오디오 데이터가 무음인지 확인합니다."""
+        return max(audio_data) < threshold
 
     def start_voice_recognition(self):
         """음성 인식을 시작합니다."""
@@ -226,18 +234,26 @@ class AIController:
             
             while self.running:
                 if not self.state.is_speaking:
-                    print("\n[음성 인식] 5초 동안 음성 수집 중...")
+                    print("\n[음성 인식] 음성 수집 중...")
                     frames = []
-                    # 5초 동안 오디오 데이터 수집
-                    for _ in range(0, int(RATE / CHUNK * 5)):
+                    silence_frames = 0
+                    max_silence_frames = int(RATE / CHUNK * 1.0)  # 1초 동안 무음이면 음성 종료로 판단
+                    
+                    while silence_frames < max_silence_frames:
                         data = stream.read(CHUNK)
                         frames.append(data)
+                        
+                        # 무음 감지
+                        if self._is_silence(data):
+                            silence_frames += 1
+                        else:
+                            silence_frames = 0
                     
                     # 수집된 오디오 데이터 처리
                     audio_data = b''.join(frames)
                     transcript = self._process_audio(audio_data)
                     
-                    # 음성 인식 결과가 있고, 현재 말하고 있지 않을 때만 처리
+                    # 키워드가 감지되고, 현재 말하고 있지 않을 때만 처리
                     if transcript and not self.state.is_speaking:
                         # 응답 생성
                         response = self._get_gpt_response(transcript)
