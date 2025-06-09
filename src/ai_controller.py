@@ -184,30 +184,35 @@ class AIController:
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
-                language_code='ko-KR',
-                model='video',  # 더 정확한 인식을 위한 video 모델 사용
+                language_code="ko-KR",
+                model="chirp_2",
                 use_enhanced=True,
                 enable_automatic_punctuation=True,
-                enable_spoken_punctuation=True,
-                enable_spoken_emojis=True,
+                enable_word_time_offsets=True,
                 speech_contexts=[{
                     "phrases": ["플랜티", "planty"],
-                    "boost": 20.0  # 키워드 인식 정확도 향상
+                    "boost": 20.0
                 }]
             )
             
+            # 음성 인식 요청
             response = self.speech_client.recognize(config=config, audio=audio)
             
-            # 임시 파일 삭제
-            os.unlink(temp_file_path)
+            # 인식 결과 처리
+            if not response.results:
+                print("[STT] 인식된 텍스트가 없습니다.")
+                return None
+                
+            transcript = response.results[0].alternatives[0].transcript
+            print(f"[STT] 인식된 텍스트: {transcript}")
             
-            if response.results:
-                transcript = response.results[0].alternatives[0].transcript
-                print(f"[음성 인식] 인식된 텍스트: {transcript}")
+            # 키워드 확인
+            if "플랜티" in transcript or "planty" in transcript.lower():
+                print("[STT] 키워드 감지됨")
                 return transcript
-            
-            print("[음성 인식] 인식된 텍스트 없음")
-            return None
+            else:
+                print("[STT] 키워드가 감지되지 않음")
+                return None
             
         except Exception as e:
             print(f"[음성 인식] 오류 발생: {str(e)}")
