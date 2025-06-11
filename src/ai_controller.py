@@ -1,14 +1,11 @@
 import os
 import pyaudio
 import wave
-import whisper
 import openai
-import speech_recognition as sr
 import threading
 import queue
 from dotenv import load_dotenv
 from google.cloud import texttospeech
-from pydub import AudioSegment
 import tempfile
 from google.cloud import speech
 import re
@@ -26,8 +23,11 @@ class AIController:
         # Google Cloud TTS 클라이언트 초기화
         self.tts_client = texttospeech.TextToSpeechClient()
         
-        # Google Speech-to-Text 클라이언트 초기화
-        self.speech_client = speech.SpeechClient()
+        # Google Speech-to-Text 클라이언트 초기화 (키워드 인식용)
+        self.keyword_speech_client = speech.SpeechClient()
+        
+        # Google Speech-to-Text 클라이언트 초기화 (일반 대화 인식용)
+        self.conversation_speech_client = speech.SpeechClient()
         
         # 상태 관리
         self.state = state
@@ -60,15 +60,9 @@ class AIController:
             frames_per_buffer=self.CHUNK
         )
         
-        # Whisper 모델 로드
-        self.whisper_model = whisper.load_model("tiny")
-        
         # 오디오 큐 초기화
         self.audio_queue = queue.Queue()
         
-        # 음성 인식기 초기화
-        self.recognizer = sr.Recognizer()
-   
     def _get_gpt_response(self, text):
         """GPT를 사용하여 응답을 생성합니다."""
         try:
@@ -179,8 +173,8 @@ class AIController:
             print(f"[TTS] 오류 발생: {str(e)}")
             return "neutral"
     
-    def _process_audio(self, audio_data):
-        """오디오 데이터를 처리하고 텍스트로 변환합니다."""
+    def _process_keyword_audio(self, audio_data):
+        """키워드 인식을 위한 오디오 데이터 처리"""
         try:
             # WAV 형식으로 변환
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
@@ -195,7 +189,7 @@ class AIController:
             with open(temp_file_path, 'rb') as audio_file:
                 content = audio_file.read()
             
-            # 음성 인식 설정
+            # 키워드 인식 설정
             audio = speech.RecognitionAudio(content=content)
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
@@ -204,31 +198,82 @@ class AIController:
                 speech_contexts=[{
                     "phrases": ["플랜티", "planty"],
                     "boost": 20.0
-                }]
+                }],
+                model="command_and_search"  # 키워드 인식에 최적화된 모델
             )
             
             # 음성 인식 요청
-            response = self.speech_client.recognize(config=config, audio=audio)
+            response = self.keyword_speech_client.recognize(config=config, audio=audio)
             
             # 인식 결과 처리
             if not response.results:
-                print("[STT] 인식된 텍스트가 없습니다.")
+                print("[키워드 인식] 인식된 텍스트가 없습니다.")
                 return None
                 
             transcript = response.results[0].alternatives[0].transcript
-            print(f"[STT] 인식된 텍스트: {transcript}")
+            print(f"[키워드 인식] 인식된 텍스트: {transcript}")
             
             # 키워드 확인
             if "플랜티" in transcript or "planty" in transcript.lower():
-                print("[STT] 키워드 감지됨")
-                return transcript
+                print("[키워드 인식] 키워드 감지됨")
+                return True
             else:
-                print("[STT] 키워드가 감지되지 않음")
-                return None
+                print("[키워드 인식] 키워드가 감지되지 않음")
+                return False
             
         except Exception as e:
-            print(f"[음성 인식] 오류 발생: {str(e)}")
+            print(f"[키워드 인식] 오류 발생: {str(e)}")
+            return False
+        finally:
+            # 임시 파일 삭제
+            if 'temp_file_path' in locals():
+                os.unlink(temp_file_path)
+
+    def _process_conversation_audio(self, audio_data):
+        """일반 대화 인식을 위한 오디오 데이터 처리"""
+        try:
+            # WAV 형식으로 변환
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_file_path = temp_file.name
+                with wave.open(temp_file_path, 'wb') as wf:
+                    wf.setnchannels(self.CHANNELS)
+                    wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
+                    wf.setframerate(self.RATE)
+                    wf.writeframes(audio_data)
+            
+            # 오디오 파일 읽기
+            with open(temp_file_path, 'rb') as audio_file:
+                content = audio_file.read()
+            
+            # 일반 대화 인식 설정
+            audio = speech.RecognitionAudio(content=content)
+            config = speech.RecognitionConfig(
+                encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+                sample_rate_hertz=16000,
+                language_code="ko-KR",
+                model="latest_long"  # 긴 대화에 최적화된 모델
+            )
+            
+            # 음성 인식 요청
+            response = self.conversation_speech_client.recognize(config=config, audio=audio)
+            
+            # 인식 결과 처리
+            if not response.results:
+                print("[대화 인식] 인식된 텍스트가 없습니다.")
+                return None
+                
+            transcript = response.results[0].alternatives[0].transcript
+            print(f"[대화 인식] 인식된 텍스트: {transcript}")
+            
+            return transcript
+            
+        except Exception as e:
+            print(f"[대화 인식] 오류 발생: {str(e)}")
             return None
+        finally:
+            # 임시 파일 삭제
+            if 'temp_file_path' in locals():
+                os.unlink(temp_file_path)
 
     def _is_silence(self, audio_data, threshold=300):
         """오디오 데이터가 무음인지 확인합니다."""
@@ -249,21 +294,37 @@ class AIController:
                 frames_per_buffer=self.CHUNK
             )
             
-            # 오디오 데이터 수집 (5초)
-            print("[음성 인식] 음성 수집 중...")
+            # 키워드 인식을 위한 오디오 데이터 수집 (3초)
+            print("[음성 인식] 키워드 인식 중...")
             frames = []
-            for _ in range(0, int(self.RATE / self.CHUNK * 5)):
+            for _ in range(0, int(self.RATE / self.CHUNK * 3)):
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
                 frames.append(data)
+            
+            # 키워드 인식
+            audio_data = b''.join(frames)
+            keyword_detected = self._process_keyword_audio(audio_data)
+            
+            if keyword_detected:
+                # 키워드가 감지되면 대화 인식 시작
+                print("[음성 인식] 대화 인식 시작...")
+                frames = []
+                for _ in range(0, int(self.RATE / self.CHUNK * 5)):
+                    data = stream.read(self.CHUNK, exception_on_overflow=False)
+                    frames.append(data)
+                
+                # 대화 인식
+                audio_data = b''.join(frames)
+                transcript = self._process_conversation_audio(audio_data)
+            else:
+                transcript = None
             
             # 스트림 정리
             stream.stop_stream()
             stream.close()
             self.state.update(is_listening=False)  # 음성 인식 종료 상태 업데이트
             
-            # 오디오 데이터 처리
-            audio_data = b''.join(frames)
-            return self._process_audio(audio_data)
+            return transcript
             
         except Exception as e:
             print(f"[음성 인식] 오류 발생: {str(e)}")
