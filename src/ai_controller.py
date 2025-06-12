@@ -10,6 +10,8 @@ import tempfile
 from google.cloud import speech
 import re
 import time
+import pvporcupine
+import struct
 
 class AIController:
     def __init__(self, state):
@@ -23,11 +25,18 @@ class AIController:
         # Google Cloud TTS 클라이언트 초기화
         self.tts_client = texttospeech.TextToSpeechClient()
         
-        # Google Speech-to-Text 클라이언트 초기화 (키워드 인식용)
-        self.keyword_speech_client = speech.SpeechClient()
-        
         # Google Speech-to-Text 클라이언트 초기화 (일반 대화 인식용)
-        self.conversation_speech_client = speech.SpeechClient()
+        self.speech_client = speech.SpeechClient()
+        
+        # Picovoice 초기화
+        try:
+            self.porcupine = pvporcupine.create(
+                access_key=os.getenv('PICOVOICE_ACCESS_KEY'),
+                keyword_paths=['models/planty.ppn']
+            )
+        except Exception as e:
+            print(f"[초기화] Picovoice 초기화 실패: {str(e)}")
+            raise
         
         # 상태 관리
         self.state = state
@@ -173,65 +182,17 @@ class AIController:
             print(f"[TTS] 오류 발생: {str(e)}")
             return "neutral"
     
-    def _process_keyword_audio(self, audio_data):
-        """키워드 인식을 위한 오디오 데이터 처리"""
-        try:
-            # WAV 형식으로 변환
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_file_path = temp_file.name
-                with wave.open(temp_file_path, 'wb') as wf:
-                    wf.setnchannels(self.CHANNELS)
-                    wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
-                    wf.setframerate(self.RATE)
-                    wf.writeframes(audio_data)
-            
-            # 오디오 파일 읽기
-            with open(temp_file_path, 'rb') as audio_file:
-                content = audio_file.read()
-            
-            # 키워드 인식 설정
-            audio = speech.RecognitionAudio(content=content)
-            config = speech.RecognitionConfig(
-                encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-                sample_rate_hertz=16000,
-                language_code="ko-KR",
-                speech_contexts=[{
-                    "phrases": ["플랜티", "planty"],
-                    "boost": 20.0
-                }],
-                model="command_and_search"  # 키워드 인식에 최적화된 모델
-            )
-            
-            # 음성 인식 요청
-            response = self.keyword_speech_client.recognize(config=config, audio=audio)
-            
-            # 인식 결과 처리
-            if not response.results:
-                print("[키워드 인식] 인식된 텍스트가 없습니다.")
-                return None
-                
-            transcript = response.results[0].alternatives[0].transcript
-            print(f"[키워드 인식] 인식된 텍스트: {transcript}")
-            
-            # 키워드 확인
-            if "플랜티" in transcript or "planty" in transcript.lower():
-                print("[키워드 인식] 키워드 감지됨")
-                return True
-            else:
-                print("[키워드 인식] 키워드가 감지되지 않음")
-                return False
-            
-        except Exception as e:
-            print(f"[키워드 인식] 오류 발생: {str(e)}")
-            return False
-        finally:
-            # 임시 파일 삭제
-            if 'temp_file_path' in locals():
-                os.unlink(temp_file_path)
-
-    def _process_conversation_audio(self, audio_data):
+    def _process_conversation_audio(self):
         """일반 대화 인식을 위한 오디오 데이터 처리"""
         try:
+            print("[대화 인식] 시작...")
+            
+            # 오디오 데이터 수집 (3초)
+            frames = []
+            for _ in range(0, int(self.RATE / self.CHUNK * 3)):
+                data = self.stream.read(self.CHUNK, exception_on_overflow=False)
+                frames.append(data)
+            
             # WAV 형식으로 변환
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                 temp_file_path = temp_file.name
@@ -239,23 +200,23 @@ class AIController:
                     wf.setnchannels(self.CHANNELS)
                     wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
                     wf.setframerate(self.RATE)
-                    wf.writeframes(audio_data)
+                    wf.writeframes(b''.join(frames))
             
             # 오디오 파일 읽기
             with open(temp_file_path, 'rb') as audio_file:
                 content = audio_file.read()
             
-            # 일반 대화 인식 설정
+            # 음성 인식 설정
             audio = speech.RecognitionAudio(content=content)
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
                 language_code="ko-KR",
-                model="latest_long"  # 긴 대화에 최적화된 모델
+                model="latest_long"
             )
             
             # 음성 인식 요청
-            response = self.conversation_speech_client.recognize(config=config, audio=audio)
+            response = self.speech_client.recognize(config=config, audio=audio)
             
             # 인식 결과 처리
             if not response.results:
@@ -273,109 +234,77 @@ class AIController:
         finally:
             # 임시 파일 삭제
             if 'temp_file_path' in locals():
-                os.unlink(temp_file_path)
+                try:
+                    os.unlink(temp_file_path)
+                except:
+                    pass
 
     def _is_silence(self, audio_data, threshold=300):
         """오디오 데이터가 무음인지 확인합니다."""
         return max(audio_data) < threshold
 
-    def start_voice_recognition(self):
-        """음성 인식을 시작합니다."""
-        try:
-            print("\n[음성 인식] 시작...")
-            self.state.update(is_listening=True)  # 음성 인식 시작 상태 업데이트
-            
-            # 오디오 스트림 설정
-            stream = self.audio.open(
-                format=self.FORMAT,
-                channels=self.CHANNELS,
-                rate=self.RATE,
-                input=True,
-                frames_per_buffer=self.CHUNK
-            )
-            
-            # 키워드 인식을 위한 오디오 데이터 수집 (3초)
-            print("[음성 인식] 키워드 인식 중...")
-            frames = []
-            for _ in range(0, int(self.RATE / self.CHUNK * 3)):
-                data = stream.read(self.CHUNK, exception_on_overflow=False)
-                frames.append(data)
-            
-            # 키워드 인식
-            audio_data = b''.join(frames)
-            keyword_detected = self._process_keyword_audio(audio_data)
-            
-            if keyword_detected:
-                # 키워드가 감지되면 대화 인식 시작
-                print("[음성 인식] 대화 인식 시작...")
-                frames = []
-                for _ in range(0, int(self.RATE / self.CHUNK * 5)):
-                    data = stream.read(self.CHUNK, exception_on_overflow=False)
-                    frames.append(data)
-                
-                # 대화 인식
-                audio_data = b''.join(frames)
-                transcript = self._process_conversation_audio(audio_data)
-            else:
-                transcript = None
-            
-            # 스트림 정리
-            stream.stop_stream()
-            stream.close()
-            self.state.update(is_listening=False)  # 음성 인식 종료 상태 업데이트
-            
-            return transcript
-            
-        except Exception as e:
-            print(f"[음성 인식] 오류 발생: {str(e)}")
-            self.state.update(is_listening=False)  # 오류 발생 시에도 상태 업데이트
-            return None
-
     def run(self):
         """AI 컨트롤러 실행"""
-        print("[시스템] Planty 시작")
-        
-        # 오디오 처리 스레드 시작
-        process_thread = threading.Thread(target=self._voice_recognition_loop)
-        process_thread.start()
-        
-        # 메인 스레드는 계속 실행
-        while self.running:
-            time.sleep(0.1)
-            
-    def _voice_recognition_loop(self):
-        """음성 인식 루프를 실행합니다."""
-        while self.running:
-            if not self.state.is_speaking:
-                # 음성 인식
-                transcript = self.start_voice_recognition()
+        print("[AI 컨트롤러] 시작...")
+        try:
+            while self.running:
+                # 오디오 데이터 읽기
+                pcm = self.stream.read(self.porcupine.frame_length)
+                pcm = struct.unpack_from("h" * self.porcupine.frame_length, pcm)
                 
-                # 키워드가 감지되고, 현재 말하고 있지 않을 때만 처리
-                if transcript and not self.state.is_speaking:
-                    # 응답 생성
-                    response = self._get_gpt_response(transcript)
+                # 키워드 인식
+                keyword_index = self.porcupine.process(pcm)
+                
+                if keyword_index >= 0:
+                    print("[키워드 인식] 키워드 감지됨!")
+                    self._handle_keyword_detected()
                     
-                    # 표정 추출
-                    expression, _ = self._parse_response(response)
-                    print(f"[표정] {expression}")
-                    
-                    # 상태 업데이트
-                    self.state.update(expression=expression, is_speaking=True)
-                    
-                    # 음성 합성 및 재생
-                    emotion = self._process_gpt_response(response)
-                    
-                    # 상태 업데이트
-                    self.state.update(is_speaking=False)
+        except Exception as e:
+            print(f"[실행] 오류 발생: {str(e)}")
+        finally:
+            self.stop()
+
+    def _handle_keyword_detected(self):
+        """키워드가 감지되었을 때의 처리"""
+        try:
+            # 상태 업데이트
+            self.state.update(is_listening=True)
             
-            # 잠시 대기
-            time.sleep(0.1)
+            # 음성 인식
+            transcript = self._process_conversation_audio()
+            
+            if transcript:
+                # GPT 응답 생성
+                response = self._get_gpt_response(transcript)
+                
+                # 표정 추출
+                expression, _ = self._parse_response(response)
+                print(f"[표정] {expression}")
+                
+                # 상태 업데이트
+                self.state.update(expression=expression, is_speaking=True)
+                
+                # 음성 합성 및 재생
+                emotion = self._process_gpt_response(response)
+                
+                # 상태 업데이트
+                self.state.update(is_speaking=False)
+            
+        except Exception as e:
+            print(f"[처리] 오류 발생: {str(e)}")
+        finally:
+            self.state.update(is_listening=False)
 
     def stop(self):
         """AI 컨트롤러 종료"""
         self.running = False
-        self.stream.stop_stream()
-        self.stream.close()
-        self.output_stream.stop_stream()
-        self.output_stream.close()
-        self.audio.terminate()
+        if hasattr(self, 'stream'):
+            self.stream.stop_stream()
+            self.stream.close()
+        if hasattr(self, 'output_stream'):
+            self.output_stream.stop_stream()
+            self.output_stream.close()
+        if hasattr(self, 'audio'):
+            self.audio.terminate()
+        if hasattr(self, 'porcupine'):
+            self.porcupine.delete()
