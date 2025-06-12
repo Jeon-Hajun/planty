@@ -149,9 +149,9 @@ class AIController:
         try:
             print("[대화 인식] 시작...")
             
-            # 오디오 데이터 수집 (3초)
+            # 오디오 데이터 수집 (4초)
             frames = []
-            for _ in range(0, int(self.RATE / self.CHUNK * 3)):
+            for _ in range(0, int(self.RATE / self.CHUNK * 4)):
                 try:
                     data = self.stream.read(self.CHUNK, exception_on_overflow=False)
                     frames.append(data)
@@ -302,28 +302,35 @@ class AIController:
     def _handle_keyword_detected(self):
         """키워드가 감지되었을 때의 처리"""
         try:
-            # 상태 업데이트
+            # 상태 업데이트 (듣는 중)
             self.state.update(is_listening=True)
+            print("[상태] 음성 인식 중...")
             
             # 음성 인식
             transcript = self._process_conversation_audio()
             
             if transcript:
                 # GPT 응답 생성
+                print("[상태] GPT 응답 생성 중...")
                 response = self._get_gpt_response(transcript)
                 
                 # 표정 추출
                 expression, _ = self._parse_response(response)
                 print(f"[표정] {expression}")
                 
-                # 상태 업데이트
+                # 상태 업데이트 (말하는 중)
                 self.state.update(expression=expression, is_speaking=True)
+                print("[상태] 음성 출력 중...")
                 
                 # 음성 합성 및 재생
                 emotion = self._process_gpt_response(response)
                 
-                # 상태 업데이트
+                # 상태 업데이트 (말하기 완료)
                 self.state.update(is_speaking=False)
+                print("[상태] 대기 중...")
+            else:
+                print("[상태] 음성을 인식하지 못했습니다.")
+                self.state.update(is_listening=False)
             
         except Exception as e:
             print(f"[처리] 오류 발생: {str(e)}")
